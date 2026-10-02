@@ -95,7 +95,7 @@ go build -o gitshiny . && ./gitshiny stats --today
 ## Publish a release
 
 ```bash
-scripts/set-owner.sh YOUR_GITHUB_sun01822   # once, replaces the sun01822 placeholder
+scripts/set-owner.sh YOUR_GITHUB_NAME   # once, replaces the placeholder
 git tag v0.1.0 && git push origin v0.1.0    # GitHub Actions builds + publishes
 ```
 
