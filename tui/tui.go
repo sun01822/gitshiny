@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/USERNAME/gitshiny/domain"
-	"github.com/USERNAME/gitshiny/utils"
+	"github.com/sun01822/gitshiny/domain"
+	"github.com/sun01822/gitshiny/utils"
 )
 
 // Options wires the menu to the rest of the application.

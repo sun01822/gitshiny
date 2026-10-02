@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/USERNAME/gitshiny/domain"
+	"github.com/sun01822/gitshiny/domain"
 )
 
 const sample = `@@gitshiny@@aaa	Alice	alice@example.com	1790000000

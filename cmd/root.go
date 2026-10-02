@@ -11,12 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/USERNAME/gitshiny/config"
-	"github.com/USERNAME/gitshiny/domain"
-	"github.com/USERNAME/gitshiny/repositories"
-	"github.com/USERNAME/gitshiny/services"
-	"github.com/USERNAME/gitshiny/tui"
-	"github.com/USERNAME/gitshiny/utils"
+	"github.com/sun01822/gitshiny/config"
+	"github.com/sun01822/gitshiny/domain"
+	"github.com/sun01822/gitshiny/repositories"
+	"github.com/sun01822/gitshiny/services"
+	"github.com/sun01822/gitshiny/tui"
+	"github.com/sun01822/gitshiny/utils"
 )
 
 // App carries the process environment so the CLI is easy to test.

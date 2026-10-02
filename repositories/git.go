@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/USERNAME/gitshiny/domain"
+	"github.com/sun01822/gitshiny/domain"
 )
 
 var (

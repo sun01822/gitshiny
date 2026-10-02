@@ -7,13 +7,13 @@ Git contribution statistics for your terminal — added lines, removed lines, ne
 **curl** (Linux / macOS, installs to `~/.local/bin`, verifies SHA-256):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/USERNAME/gitshiny/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/sun01822/gitshiny/main/install.sh | sh
 ```
 
 **Go** (1.22+):
 
 ```bash
-go install github.com/USERNAME/gitshiny@latest
+go install github.com/sun01822/gitshiny@latest
 ```
 
 Make sure `~/.local/bin` (curl) or `$(go env GOPATH)/bin` (Go) is on your `PATH`:
@@ -95,7 +95,7 @@ go build -o gitshiny . && ./gitshiny stats --today
 ## Publish a release
 
 ```bash
-scripts/set-owner.sh YOUR_GITHUB_USERNAME   # once, replaces the USERNAME placeholder
+scripts/set-owner.sh YOUR_GITHUB_sun01822   # once, replaces the sun01822 placeholder
 git tag v0.1.0 && git push origin v0.1.0    # GitHub Actions builds + publishes
 ```
 

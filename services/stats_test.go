@@ -3,7 +3,7 @@ package services
 import (
 	"testing"
 
-	"github.com/USERNAME/gitshiny/domain"
+	"github.com/sun01822/gitshiny/domain"
 )
 
 type fakeSource []domain.Commit

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/USERNAME/gitshiny/domain"
+	"github.com/sun01822/gitshiny/domain"
 )
 
 func runMenu(t *testing.T, input string) (string, []domain.Query, error) {

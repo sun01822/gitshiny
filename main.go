@@ -5,7 +5,7 @@ import (
 	"os"
 	"runtime/debug"
 
-	"github.com/USERNAME/gitshiny/cmd"
+	"github.com/sun01822/gitshiny/cmd"
 )
 
 // version is set at release time: -ldflags "-X main.version=v1.0.0".

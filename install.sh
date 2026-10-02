@@ -1,15 +1,15 @@
 #!/bin/sh
 # GitShiny installer
-#   curl -fsSL https://raw.githubusercontent.com/USERNAME/gitshiny/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/sun01822/gitshiny/main/install.sh | sh
 #
 # Environment overrides:
 #   GITSHINY_VERSION      install a specific tag (default: latest release)
 #   GITSHINY_INSTALL_DIR  install location (default: ~/.local/bin)
-#   GITSHINY_REPO         owner/repo (default: USERNAME/gitshiny)
+#   GITSHINY_REPO         owner/repo (default: sun01822/gitshiny)
 #   GITSHINY_BASE_URL     release download base URL (mirrors / testing)
 set -eu
 
-REPO="${GITSHINY_REPO:-USERNAME/gitshiny}"
+REPO="${GITSHINY_REPO:-sun01822/gitshiny}"
 INSTALL_DIR="${GITSHINY_INSTALL_DIR:-$HOME/.local/bin}"
 VERSION="${GITSHINY_VERSION:-}"
 BASE_URL="${GITSHINY_BASE_URL:-https://github.com/$REPO/releases/download}"

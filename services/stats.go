@@ -2,7 +2,7 @@
 // CLI or TUI, so any interface can reuse it.
 package services
 
-import "github.com/USERNAME/gitshiny/domain"
+import "github.com/sun01822/gitshiny/domain"
 
 // CommitSource provides commits for a query (implemented by repositories.Git).
 type CommitSource interface {
