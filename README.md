@@ -10,7 +10,7 @@ Git contribution statistics for your terminal — added lines, removed lines, ne
 curl -fsSL https://raw.githubusercontent.com/sun01822/gitshiny/main/install.sh | sh
 ```
 
-**Go** (1.22+):
+**Go** (1.23+):
 
 ```bash
 go install github.com/sun01822/gitshiny@latest
@@ -29,7 +29,7 @@ Windows: download the `.zip` from the Releases page.
 Run it in any Git repository.
 
 ```bash
-gitshiny                      # interactive menu
+gitshiny                      # interactive TUI
 gitshiny stats --today
 gitshiny stats --yesterday
 gitshiny stats --since "2026-10-01 09:00:00" --until "2026-10-01 18:00:00"
@@ -47,6 +47,8 @@ gitshiny stats --all-authors --all-branches --since 2026-10-01
 | `--branch NAME` / `--all-branches` | default is the current branch |
 | `--format text\|json\|csv` | default `text` (or set `GITSHINY_FORMAT`) |
 | `-C DIR` | run as if started in `DIR` |
+
+TUI keys: `↑`/`↓` (or `j`/`k`) move, `enter` select, `tab` next field, `r` refresh, `esc` back, `q` quit. The TUI only starts on a terminal; piped or redirected runs print the usage text.
 
 JSON output (handy for CI):
 
@@ -77,13 +79,13 @@ config/          environment configuration
 domain/          core models
 services/        statistics engine (UI independent)
 repositories/    git access
-tui/             interactive menu
+tui/             interactive Bubble Tea UI
 utils/           time parsing, number formatting
 scripts/         bash MVP, release build, set-owner
 install.sh       curl installer
 ```
 
-The statistics engine never touches the UI, so the planned Bubble Tea TUI can replace `tui/` without changing anything else.
+The statistics engine never touches the UI: the CLI and the Bubble Tea TUI both call it through the same `compute` function.
 
 ## Develop
 

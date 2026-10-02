@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/x/term"
+
 	"github.com/sun01822/gitshiny/config"
 	"github.com/sun01822/gitshiny/domain"
 	"github.com/sun01822/gitshiny/repositories"
@@ -32,7 +34,7 @@ type App struct {
 const usage = `GitShiny - Git contribution statistics
 
 Usage:
-  gitshiny                       interactive menu
+  gitshiny                       interactive TUI
   gitshiny stats [flags]         print statistics (automation friendly)
   gitshiny version
   gitshiny help
@@ -64,7 +66,7 @@ func Execute(app App, args []string) int {
 		app.Now = time.Now
 	}
 	if len(args) == 0 {
-		if isTerminal(app.In) {
+		if isTerminal(app.In) && isTerminal(app.Out) {
 			return runInteractive(app)
 		}
 		fmt.Fprint(app.Out, usage)
@@ -239,11 +241,7 @@ func b2i(b bool) int {
 	return 0
 }
 
-func isTerminal(r io.Reader) bool {
-	f, ok := r.(*os.File)
-	if !ok {
-		return false
-	}
-	fi, err := f.Stat()
-	return err == nil && fi.Mode()&os.ModeCharDevice != 0
+func isTerminal(v any) bool {
+	f, ok := v.(*os.File)
+	return ok && term.IsTerminal(f.Fd())
 }
