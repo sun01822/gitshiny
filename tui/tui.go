@@ -31,15 +31,25 @@ type Options struct {
 }
 
 // Run starts the UI. Statistics still on screen at exit are printed with
-// Render so they survive in the scrollback once the alt screen closes.
+// Render so they survive in the scrollback once the alt screen closes, and so
+// does a one-line thanks unless the user bailed out with ctrl+c.
 func Run(o Options) error {
 	final, err := tea.NewProgram(newModel(o),
 		tea.WithInput(o.In), tea.WithOutput(o.Out), tea.WithAltScreen()).Run()
 	if err != nil {
 		return err
 	}
-	if m, ok := final.(model); ok && m.screen == statsScreen {
-		return o.Render(o.Out, m.stats)
+	m, ok := final.(model)
+	if !ok {
+		return nil
+	}
+	if m.screen == statsScreen || m.printStats {
+		if err := o.Render(o.Out, m.stats); err != nil {
+			return err
+		}
+	}
+	if m.screen == farewellScreen {
+		fmt.Fprintln(o.Out, accentText.Render("✦ "+thanks))
 	}
 	return nil
 }
@@ -52,6 +62,7 @@ const (
 	loadingScreen
 	statsScreen
 	errorScreen
+	farewellScreen
 )
 
 var periods = []string{"Today", "Yesterday", "Custom"}
@@ -59,8 +70,9 @@ var periods = []string{"Today", "Yesterday", "Custom"}
 const custom = 2 // index into periods
 
 type (
-	statsMsg domain.Stats
-	errMsg   struct{ err error }
+	statsMsg    domain.Stats
+	errMsg      struct{ err error }
+	farewellMsg struct{}
 )
 
 type model struct {
@@ -70,17 +82,27 @@ type model struct {
 	inputs  [2]textinput.Model // custom start, end
 	focus   int                // focused custom input
 	spin    spinner.Model
-	frame   int          // loading animation frame
+	frame   int          // loading or farewell animation frame
 	q       domain.Query // query being collected
 	err     error
 	stats   domain.Stats
 	updated time.Time
 	w, h    int // terminal size, 0 until the first WindowSizeMsg
+
+	printStats bool // quit from the stats screen: Run prints them
 }
 
 // minLoading keeps the loading screen up long enough to be seen: git usually
 // answers in milliseconds, which would otherwise flash past unnoticed.
 var minLoading = 700 * time.Millisecond
+
+// The farewell plays farewellFrames frames, just under a second in total.
+var farewellFrame = 50 * time.Millisecond
+
+const (
+	farewellFrames = 18
+	thanks         = "Thanks for using GitShiny"
+)
 
 func newModel(o Options) model {
 	dots := spinner.Spinner{Frames: spinner.MiniDot.Frames, FPS: time.Second / 20}
@@ -152,6 +174,17 @@ func (m model) choose() (tea.Model, tea.Cmd) {
 	return m.calculate()
 }
 
+// farewell replaces an immediate quit with the short thank-you animation.
+func (m model) farewell() (tea.Model, tea.Cmd) {
+	m.printStats = m.screen == statsScreen
+	m.screen, m.frame = farewellScreen, 0
+	return m, farewellTick()
+}
+
+func farewellTick() tea.Cmd {
+	return tea.Tick(farewellFrame, func(time.Time) tea.Msg { return farewellMsg{} })
+}
+
 func (m model) setFocus(i int) (tea.Model, tea.Cmd) {
 	m.inputs[m.focus].Blur()
 	m.focus = i
@@ -174,6 +207,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.spin, cmd = m.spin.Update(msg)
 			return m, cmd
 		}
+	case farewellMsg:
+		if m.screen != farewellScreen {
+			return m, nil
+		}
+		if m.frame++; m.frame >= farewellFrames {
+			return m, tea.Quit
+		}
+		return m, farewellTick()
 	case tea.KeyMsg:
 		return m.key(msg)
 	default:
@@ -194,7 +235,7 @@ func (m model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case menuScreen:
 		switch s := k.String(); s {
 		case "q", "esc":
-			return m, tea.Quit
+			return m.farewell()
 		case "up", "k":
 			m.cursor = (m.cursor + len(periods) - 1) % len(periods)
 		case "down", "j":
@@ -226,12 +267,14 @@ func (m model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case statsScreen, errorScreen:
 		switch k.String() {
 		case "q":
-			return m, tea.Quit
+			return m.farewell()
 		case "esc":
 			m.screen, m.err = menuScreen, nil
 		case "r":
 			return m.calculate()
 		}
+	case farewellScreen: // any key skips the animation
+		return m, tea.Quit
 	}
 	return m, nil
 }
@@ -277,6 +320,8 @@ func (m model) View() string {
 	case errorScreen:
 		body = errPanel.Render(badText.Bold(true).Render("✗ Something went wrong") + "\n" + m.err.Error())
 		keys = help("r", "retry", "esc", "menu", "q", "quit")
+	case farewellScreen:
+		body, keys = m.farewellView(), help("any key", "exit now")
 	}
 	out := box.Render(m.header() + "\n\n" + body + "\n\n" + keys)
 	if m.w >= lipgloss.Width(out) && m.h >= lipgloss.Height(out) {
@@ -353,6 +398,23 @@ func (m model) loadingView() string {
 	bar := mutedText.Render(strings.Repeat("─", from)) + accentText.Render(strings.Repeat("━", to-from)) +
 		mutedText.Render(strings.Repeat("─", barWidth-to))
 	return m.spin.View() + " Collecting commits…\n" + mutedText.Render(what) + "\n\n" + bar
+}
+
+// farewellView types out the thanks between twinkling sparkles while a bar
+// fills to show how long is left.
+func (m model) farewellView() string {
+	sparkles := []string{"✦", "✧", "·"}
+	n := min(m.frame*3, len(thanks))
+	line := accentText.Render(sparkles[m.frame/2%3]+"  "+thanks[:n]) + strings.Repeat(" ", len(thanks)-n) +
+		accentText.Render("  "+sparkles[(m.frame/2+1)%3])
+	wish := ""
+	if n == len(thanks) {
+		wish = mutedText.MaxWidth(inner).Render("Happy committing, " + m.o.Author)
+	}
+	fill := min((m.frame+1)*barWidth/farewellFrames, barWidth)
+	centre := lipgloss.NewStyle().Width(inner).Align(lipgloss.Center)
+	return centre.Render(line) + "\n" + centre.Render(wish) + "\n\n" +
+		accentText.Render(strings.Repeat("━", fill)) + mutedText.Render(strings.Repeat("─", barWidth-fill))
 }
 
 func (m model) statsView() string {

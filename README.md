@@ -122,7 +122,8 @@ In a real terminal it is in colour: the selected row and title are filled with t
 | `tab` | switch between Start and End |
 | `r` | refresh, or retry after an error |
 | `esc` | back to the menu |
-| `q` / `ctrl+c` | quit |
+| `q` | quit with a short thank-you animation (any key skips it) |
+| `ctrl+c` | quit immediately |
 
 - **Custom** takes the same time formats as `--since` / `--until` below; the fields support cursor movement and paste.
 - While GitShiny reads the history it shows a spinner and a sliding bar. Git usually answers in milliseconds, so the TUI holds that screen for about 0.7 s to keep it visible; `gitshiny stats` is never delayed.

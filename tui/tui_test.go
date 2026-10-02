@@ -23,7 +23,7 @@ type harness struct {
 }
 
 func newHarness() *harness {
-	minLoading = 0
+	minLoading, farewellFrame = 0, 0
 	h := &harness{stats: domain.Stats{Repository: "repo", Branch: "main",
 		Added: 1842, Removed: 391, Commits: 12, FilesChanged: 37}}
 	h.m = newModel(Options{
@@ -221,10 +221,39 @@ func TestRatioBar(t *testing.T) {
 }
 
 func TestQuit(t *testing.T) {
-	for _, k := range []string{"q", "esc", "ctrl+c"} {
-		if h := newHarness().press(k); !h.quit || len(h.seen) != 0 {
+	// q and esc play the farewell to its end, then quit.
+	for _, k := range []string{"q", "esc"} {
+		h := newHarness().press(k)
+		if !h.quit || len(h.seen) != 0 || h.m.(model).printStats {
 			t.Errorf("%s: quit=%v seen=%v", k, h.quit, h.seen)
 		}
+		for _, want := range []string{thanks, "Happy committing, Alice"} {
+			if !strings.Contains(h.m.View(), want) {
+				t.Errorf("%s: farewell missing %q:\n%s", k, want, h.m.View())
+			}
+		}
+	}
+	// ctrl+c skips the farewell.
+	if h := newHarness().press("ctrl+c"); !h.quit || h.m.(model).screen != menuScreen {
+		t.Errorf("ctrl+c: quit=%v screen=%v", h.quit, h.m.(model).screen)
+	}
+	// The farewell animates, and any key cuts it short.
+	m, _ := newHarness().m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
+	first := m.View()
+	if m.(model).screen != farewellScreen || strings.Contains(first, thanks) {
+		t.Errorf("farewell should start with the thanks still untyped:\n%s", first)
+	}
+	if m, _ = m.Update(farewellMsg{}); m.View() == first {
+		t.Error("farewell should change between frames")
+	}
+	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter}); cmd == nil {
+		t.Error("a key during the farewell should quit")
+	} else if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Error("a key during the farewell should quit")
+	}
+	// Quitting from the stats screen still leaves them for the scrollback.
+	if h := newHarness().press("enter", "q"); !h.quit || !h.m.(model).printStats {
+		t.Errorf("quit from stats: quit=%v printStats=%v", h.quit, h.m.(model).printStats)
 	}
 	// q inside a text field is text, not quit.
 	if h := newHarness().press("3", "q"); h.quit || !strings.Contains(h.m.View(), "q") {
