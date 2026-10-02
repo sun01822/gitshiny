@@ -72,52 +72,60 @@ command -v gitshiny                       # prints nothing once it is removed
 Run `gitshiny` with no arguments in any Git repository.
 
 ```text
-╭──────────────────────────────────────╮
-│               GitShiny               │
-│ ──────────────────────────────────── │
-│                                      │
-│ Time Range                           │
-│ > Today                              │
-│   Yesterday                          │
-│   Custom                             │
-│                                      │
-│ Author                               │
-│ sun01822                             │
-│                                      │
-│ ↑/↓ move  enter select  q quit       │
-╰──────────────────────────────────────╯
+╭────────────────────────────────────────────────────╮
+│                                                    │
+│   ✦ GitShiny                      gitshiny · main  │
+│                                                    │
+│  TIME RANGE                                        │
+│  ▸ 1  Today        Fri, Oct 2                      │
+│    2  Yesterday    Thu, Oct 1                      │
+│    3  Custom       pick any start and end          │
+│                                                    │
+│  AUTHOR                                            │
+│  sun01822                                          │
+│                                                    │
+│  ↑/↓ move · enter select · 1-3 jump · q quit       │
+│                                                    │
+╰────────────────────────────────────────────────────╯
 ```
 
 ```text
-╭──────────────────────────────────────╮
-│               GitShiny               │
-│ ──────────────────────────────────── │
-│                                      │
-│ Repository   gitshiny                │
-│ Branch       main                    │
-│ Author       sun01822                │
-│ Period       Today                   │
-│                                      │
-│ Added                 1,653          │
-│ Removed                  28          │
-│ Net Growth           +1,625          │
-│ Commits                   4          │
-│ Files Changed            24          │
-│                                      │
-│ r refresh  esc menu  q quit          │
-╰──────────────────────────────────────╯
+╭────────────────────────────────────────────────────╮
+│                                                    │
+│   ✦ GitShiny                      gitshiny · main  │
+│                                                    │
+│  Today · sun01822                                  │
+│  2026-10-02 00:00 → 2026-10-02 23:59               │
+│                                                    │
+│  ╭─────────────╮ ╭─────────────╮ ╭─────────────╮   │
+│  │ +2,152      │ │ -141        │ │ +2,011      │   │
+│  │ added       │ │ removed     │ │ net growth  │   │
+│  ╰─────────────╯ ╰─────────────╯ ╰─────────────╯   │
+│  ████████████████████████████████████████████▒▒▒   │
+│                                                    │
+│  Commits  7              Files changed  25         │
+│                                                    │
+│  updated 18:20:39                                  │
+│                                                    │
+│  r refresh · esc menu · q quit                     │
+│                                                    │
+╰────────────────────────────────────────────────────╯
 ```
+
+In a real terminal it is in colour: the selected row and title are filled with the accent colour, added lines are green, removed lines are red, and the bar shows added against removed. Colours adapt to light and dark terminals and are switched off by `NO_COLOR`.
 
 | Key | Action |
 |---|---|
-| `↑` `↓` or `j` `k` | move |
+| `↑` `↓` or `j` `k` | move (wraps around) |
+| `1` `2` `3` | jump straight to Today, Yesterday, Custom |
 | `enter` | select, next field, calculate |
 | `tab` | switch between Start and End |
 | `r` | refresh, or retry after an error |
 | `esc` | back to the menu |
 | `q` / `ctrl+c` | quit |
 
-- **Custom** takes the same time formats as `--since` / `--until` below.
+- **Custom** takes the same time formats as `--since` / `--until` below; the fields support cursor movement and paste.
+- While GitShiny reads the history it shows a spinner and a sliding bar. Git usually answers in milliseconds, so the TUI holds that screen for about 0.7 s to keep it visible; `gitshiny stats` is never delayed.
 - Quit from the statistics screen and the result is printed as plain text, so it stays in your scrollback.
 - The TUI starts only when both input and output are a terminal. Piped or redirected runs print the usage text instead, so scripts never hang on it.
 

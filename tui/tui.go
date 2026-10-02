@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -18,18 +20,20 @@ import (
 
 // Options wires the UI to the rest of the application.
 type Options struct {
-	In        io.Reader
-	Out       io.Writer
-	Author    string
-	Now       func() time.Time
-	Calculate func(domain.Query) (domain.Stats, error)
-	Render    func(io.Writer, domain.Stats) error
+	In         io.Reader
+	Out        io.Writer
+	Repository string
+	Branch     string
+	Author     string
+	Now        func() time.Time
+	Calculate  func(domain.Query) (domain.Stats, error)
+	Render     func(io.Writer, domain.Stats) error
 }
 
 // Run starts the UI. Statistics still on screen at exit are printed with
 // Render so they survive in the scrollback once the alt screen closes.
 func Run(o Options) error {
-	final, err := tea.NewProgram(model{o: o},
+	final, err := tea.NewProgram(newModel(o),
 		tea.WithInput(o.In), tea.WithOutput(o.Out), tea.WithAltScreen()).Run()
 	if err != nil {
 		return err
@@ -60,13 +64,36 @@ type (
 )
 
 type model struct {
-	o      Options
-	screen screen
-	cursor int       // selected period
-	fields [2]string // custom start, end
-	focus  int       // focused custom field
-	err    error
-	stats  domain.Stats
+	o       Options
+	screen  screen
+	cursor  int                // selected period
+	inputs  [2]textinput.Model // custom start, end
+	focus   int                // focused custom input
+	spin    spinner.Model
+	frame   int          // loading animation frame
+	q       domain.Query // query being collected
+	err     error
+	stats   domain.Stats
+	updated time.Time
+	w, h    int // terminal size, 0 until the first WindowSizeMsg
+}
+
+// minLoading keeps the loading screen up long enough to be seen: git usually
+// answers in milliseconds, which would otherwise flash past unnoticed.
+var minLoading = 700 * time.Millisecond
+
+func newModel(o Options) model {
+	dots := spinner.Spinner{Frames: spinner.MiniDot.Frames, FPS: time.Second / 20}
+	m := model{o: o, spin: spinner.New(spinner.WithSpinner(dots), spinner.WithStyle(accentText))}
+	day := o.Now().Format("2006-01-02")
+	for i, placeholder := range []string{day + " 00:00", day + " 23:59"} {
+		in := textinput.New()
+		in.Prompt, in.Placeholder, in.CharLimit, in.Width = "", placeholder, 25, 28
+		in.PlaceholderStyle = mutedText
+		in.Cursor.Style = accentText
+		m.inputs[i] = in
+	}
+	return m
 }
 
 func (m model) Init() tea.Cmd { return nil }
@@ -83,10 +110,10 @@ func (m model) query() (domain.Query, error) {
 		q.Since, q.Until = utils.DayRange(now.AddDate(0, 0, -1))
 	default:
 		var err error
-		if q.Since, err = utils.ParseTime(m.fields[0], now.Location(), false); err != nil {
+		if q.Since, err = utils.ParseTime(m.inputs[0].Value(), now.Location(), false); err != nil {
 			return q, err
 		}
-		if q.Until, err = utils.ParseTime(m.fields[1], now.Location(), true); err != nil {
+		if q.Until, err = utils.ParseTime(m.inputs[1].Value(), now.Location(), true); err != nil {
 			return q, err
 		}
 		if q.Since.After(q.Until) {
@@ -103,25 +130,58 @@ func (m model) calculate() (tea.Model, tea.Cmd) {
 		m.screen, m.err = customScreen, err
 		return m, nil
 	}
-	m.screen, m.err = loadingScreen, nil
+	m.screen, m.err, m.q, m.frame = loadingScreen, nil, q, 0
 	calc := m.o.Calculate
-	return m, func() tea.Msg {
+	return m, tea.Batch(m.spin.Tick, func() tea.Msg {
+		start := time.Now()
 		st, err := calc(q)
+		time.Sleep(minLoading - time.Since(start))
 		if err != nil {
 			return errMsg{err}
 		}
 		return statsMsg(st)
+	})
+}
+
+// choose acts on the selected period: open the custom form or calculate.
+func (m model) choose() (tea.Model, tea.Cmd) {
+	if m.cursor == custom {
+		m.screen, m.err = customScreen, nil
+		return m.setFocus(0)
 	}
+	return m.calculate()
+}
+
+func (m model) setFocus(i int) (tea.Model, tea.Cmd) {
+	m.inputs[m.focus].Blur()
+	m.focus = i
+	return m, m.inputs[i].Focus()
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.w, m.h = msg.Width, msg.Height
 	case statsMsg:
-		m.screen, m.stats = statsScreen, domain.Stats(msg)
+		m.screen, m.stats, m.updated = statsScreen, domain.Stats(msg), m.o.Now()
 	case errMsg:
 		m.screen, m.err = errorScreen, msg.err
+	case spinner.TickMsg:
+		// Only animate while loading, so the tick chain stops afterwards.
+		if m.screen == loadingScreen {
+			m.frame++
+			var cmd tea.Cmd
+			m.spin, cmd = m.spin.Update(msg)
+			return m, cmd
+		}
 	case tea.KeyMsg:
 		return m.key(msg)
+	default:
+		if m.screen == customScreen { // cursor blink
+			var cmd tea.Cmd
+			m.inputs[m.focus], cmd = m.inputs[m.focus].Update(msg)
+			return m, cmd
+		}
 	}
 	return m, nil
 }
@@ -132,39 +192,37 @@ func (m model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	switch m.screen {
 	case menuScreen:
-		switch k.String() {
+		switch s := k.String(); s {
 		case "q", "esc":
 			return m, tea.Quit
 		case "up", "k":
-			m.cursor = max(m.cursor-1, 0)
+			m.cursor = (m.cursor + len(periods) - 1) % len(periods)
 		case "down", "j":
-			m.cursor = min(m.cursor+1, len(periods)-1)
+			m.cursor = (m.cursor + 1) % len(periods)
+		case "1", "2", "3":
+			m.cursor = int(s[0] - '1')
+			return m.choose()
 		case "enter":
-			if m.cursor == custom {
-				m.screen, m.focus, m.err = customScreen, 0, nil
-				return m, nil
-			}
-			return m.calculate()
+			return m.choose()
 		}
 	case customScreen:
 		switch k.Type {
 		case tea.KeyEsc:
 			m.screen, m.err = menuScreen, nil
+			return m, nil
 		case tea.KeyTab, tea.KeyShiftTab, tea.KeyUp, tea.KeyDown:
-			m.focus = 1 - m.focus
+			return m.setFocus(1 - m.focus)
 		case tea.KeyEnter:
 			if m.focus == 0 {
-				m.focus = 1
-				return m, nil
+				return m.setFocus(1)
 			}
 			return m.calculate()
-		case tea.KeyBackspace:
-			if r := []rune(m.fields[m.focus]); len(r) > 0 {
-				m.fields[m.focus] = string(r[:len(r)-1])
-			}
-		case tea.KeyRunes, tea.KeySpace:
-			m.fields[m.focus] += string(k.Runes)
 		}
+		// Everything else is text editing, including "q".
+		var cmd tea.Cmd
+		m.inputs[m.focus], cmd = m.inputs[m.focus].Update(k)
+		m.err = nil
+		return m, cmd
 	case statsScreen, errorScreen:
 		switch k.String() {
 		case "q":
@@ -178,70 +236,174 @@ func (m model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-const width = 36 // inner width of the box
+const (
+	layout   = "2006-01-02 15:04"
+	inner    = 48 // content width inside the box
+	barWidth = 47 // three cards plus two gaps
+)
 
 var (
-	box   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1).Width(width + 2)
-	title = lipgloss.NewStyle().Bold(true).Width(width).Align(lipgloss.Center)
-	bold  = lipgloss.NewStyle().Bold(true)
-	dim   = lipgloss.NewStyle().Faint(true)
-	green = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
-	red   = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	accent   = lipgloss.AdaptiveColor{Light: "#6C3BD9", Dark: "#A78BFA"}
+	onAccent = lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#1A1033"}
+	good     = lipgloss.AdaptiveColor{Light: "#0E8A5F", Dark: "#3DDC97"}
+	bad      = lipgloss.AdaptiveColor{Light: "#D1345B", Dark: "#FF6B8B"}
+	muted    = lipgloss.AdaptiveColor{Light: "#6B7280", Dark: "#8B8FA3"}
+
+	rounded    = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
+	box        = rounded.BorderForeground(accent).Padding(1, 2).Width(inner + 4)
+	errPanel   = rounded.BorderForeground(bad).Width(inner - 2)
+	bold       = lipgloss.NewStyle().Bold(true)
+	badge      = bold.Foreground(onAccent).Background(accent).Padding(0, 1)
+	selected   = bold.Foreground(onAccent).Background(accent).Width(inner)
+	label      = bold.Foreground(muted)
+	accentText = bold.Foreground(accent)
+	mutedText  = lipgloss.NewStyle().Foreground(muted)
+	goodText   = lipgloss.NewStyle().Foreground(good)
+	badText    = lipgloss.NewStyle().Foreground(bad)
+	column     = lipgloss.NewStyle().Width(inner / 2)
 )
 
 func (m model) View() string {
-	var b strings.Builder
-	b.WriteString(title.Render("GitShiny") + "\n" + dim.Render(strings.Repeat("─", width)) + "\n\n")
-	help := ""
+	var body, keys string
 	switch m.screen {
 	case menuScreen:
-		b.WriteString(bold.Render("Time Range") + "\n")
-		for i, p := range periods {
-			if i == m.cursor {
-				b.WriteString(bold.Render("> "+p) + "\n")
-			} else {
-				b.WriteString("  " + p + "\n")
-			}
-		}
-		b.WriteString("\n" + bold.Render("Author") + "\n" + m.o.Author + "\n")
-		help = "↑/↓ move  enter select  q quit"
+		body, keys = m.menuView(), help("↑/↓", "move", "enter", "select", "1-3", "jump", "q", "quit")
 	case customScreen:
-		b.WriteString(bold.Render("Custom Range") + "\n" + dim.Render("YYYY-MM-DD [HH:MM[:SS]]") + "\n\n")
-		for i, label := range []string{"Start", "End  "} {
-			cur := "  "
-			if i == m.focus {
-				cur = "> "
-				label += " " + m.fields[i] + "█"
-			} else {
-				label += " " + m.fields[i]
-			}
-			b.WriteString(cur + label + "\n")
-		}
-		if m.err != nil {
-			b.WriteString("\n" + red.Render(m.err.Error()) + "\n")
-		}
-		help = "tab next  enter calculate  esc back"
+		body, keys = m.customView(), help("tab", "switch", "enter", "next/calculate", "esc", "back")
 	case loadingScreen:
-		b.WriteString("Calculating…\n")
-		help = "ctrl+c quit"
+		body, keys = m.loadingView(), help("ctrl+c", "quit")
 	case statsScreen:
-		s := m.stats
-		net := green
-		if s.NetGrowth() < 0 {
-			net = red
-		}
-		fmt.Fprintf(&b, "%-12s %s\n%-12s %s\n%-12s %s\n%-12s %s\n\n",
-			"Repository", s.Repository, "Branch", s.Branch,
-			"Author", strings.Join(s.Authors, ", "), "Period", s.Period)
-		fmt.Fprintf(&b, "%-14s %12s\n%-14s %12s\n%-14s %s\n%-14s %12s\n%-14s %12s\n",
-			"Added", utils.Commas(s.Added), "Removed", utils.Commas(s.Removed),
-			"Net Growth", net.Render(fmt.Sprintf("%12s", utils.Signed(s.NetGrowth()))),
-			"Commits", utils.Commas(s.Commits), "Files Changed", utils.Commas(s.FilesChanged))
-		help = "r refresh  esc menu  q quit"
+		body, keys = m.statsView(), help("r", "refresh", "esc", "menu", "q", "quit")
 	case errorScreen:
-		b.WriteString(bold.Render("Error") + "\n" + red.Render(m.err.Error()) + "\n")
-		help = "r retry  esc menu  q quit"
+		body = errPanel.Render(badText.Bold(true).Render("✗ Something went wrong") + "\n" + m.err.Error())
+		keys = help("r", "retry", "esc", "menu", "q", "quit")
 	}
-	b.WriteString("\n" + dim.Render(help))
-	return box.Render(b.String()) + "\n"
+	out := box.Render(m.header() + "\n\n" + body + "\n\n" + keys)
+	if m.w >= lipgloss.Width(out) && m.h >= lipgloss.Height(out) {
+		return lipgloss.Place(m.w, m.h, lipgloss.Center, lipgloss.Center, out)
+	}
+	return out + "\n"
+}
+
+// header is the title badge with "repository · branch" right-aligned.
+func (m model) header() string {
+	left := badge.Render("✦ GitShiny")
+	where := m.o.Repository
+	if m.o.Branch != "" {
+		where = strings.TrimPrefix(where+" · "+m.o.Branch, " · ")
+	}
+	right := mutedText.MaxWidth(inner - lipgloss.Width(left) - 2).Render(where)
+	gap := inner - lipgloss.Width(left) - lipgloss.Width(right)
+	return left + strings.Repeat(" ", max(gap, 1)) + right
+}
+
+// help renders key/description pairs for the footer.
+func help(pairs ...string) string {
+	parts := make([]string, 0, len(pairs)/2)
+	for i := 0; i+1 < len(pairs); i += 2 {
+		parts = append(parts, accentText.Render(pairs[i])+" "+mutedText.Render(pairs[i+1]))
+	}
+	return strings.Join(parts, mutedText.Render(" · "))
+}
+
+func (m model) menuView() string {
+	now := m.o.Now()
+	hints := []string{now.Format("Mon, Jan 2"), now.AddDate(0, 0, -1).Format("Mon, Jan 2"), "pick any start and end"}
+	var b strings.Builder
+	b.WriteString(label.Render("TIME RANGE") + "\n")
+	for i, p := range periods {
+		if i == m.cursor {
+			b.WriteString(selected.Render(fmt.Sprintf("▸ %d  %-12s %s", i+1, p, hints[i])) + "\n")
+		} else {
+			fmt.Fprintf(&b, "  %s  %-12s %s\n", mutedText.Render(fmt.Sprint(i+1)), p, mutedText.Render(hints[i]))
+		}
+	}
+	b.WriteString("\n" + label.Render("AUTHOR") + "\n" + m.o.Author)
+	return b.String()
+}
+
+func (m model) customView() string {
+	var b strings.Builder
+	b.WriteString(label.Render("CUSTOM RANGE") + "\n")
+	for i, name := range []string{"Start", "End"} {
+		if i == m.focus {
+			b.WriteString(accentText.Render(fmt.Sprintf("▸ %-6s", name)))
+		} else {
+			b.WriteString(mutedText.Render(fmt.Sprintf("  %-6s", name)))
+		}
+		b.WriteString(m.inputs[i].View() + "\n")
+	}
+	b.WriteString("\n" + mutedText.Render("YYYY-MM-DD, optionally with HH:MM or HH:MM:SS"))
+	if m.err != nil {
+		b.WriteString("\n\n" + badText.Render("✗ "+m.err.Error()))
+	}
+	return b.String()
+}
+
+// loadingView says what is being collected above a sliding bar. The bar is
+// indeterminate: git log is a single call with no progress to report.
+func (m model) loadingView() string {
+	const block = 8
+	what := m.q.Period + " · " + m.q.Since.Format("Mon, Jan 2") + " · " + m.o.Author
+	if m.cursor == custom {
+		what = m.q.Since.Format(layout) + " → " + m.q.Until.Format(layout)
+	}
+	pos := (m.frame*2+block)%(barWidth+block) - block
+	from, to := max(pos, 0), min(pos+block, barWidth)
+	bar := mutedText.Render(strings.Repeat("─", from)) + accentText.Render(strings.Repeat("━", to-from)) +
+		mutedText.Render(strings.Repeat("─", barWidth-to))
+	return m.spin.View() + " Collecting commits…\n" + mutedText.Render(what) + "\n\n" + bar
+}
+
+func (m model) statsView() string {
+	s := m.stats
+	var b strings.Builder
+	b.WriteString(bold.Render(s.Period) + mutedText.Render(" · ") + strings.Join(s.Authors, ", ") + "\n")
+	b.WriteString(mutedText.Render(s.Since.Format(layout)+" → "+s.Until.Format(layout)) + "\n\n")
+	if s.Commits == 0 {
+		b.WriteString("No commits in this period.\n" + mutedText.Render("Press esc to pick another range.") + "\n")
+	} else {
+		net := lipgloss.TerminalColor(muted)
+		if n := s.NetGrowth(); n > 0 {
+			net = good
+		} else if n < 0 {
+			net = bad
+		}
+		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top,
+			card(utils.Signed(s.Added), "added", good), " ",
+			card(utils.Signed(-s.Removed), "removed", bad), " ",
+			card(utils.Signed(s.NetGrowth()), "net growth", net)) + "\n")
+		if bar := ratioBar(s.Added, s.Removed); bar != "" {
+			b.WriteString(bar + "\n")
+		}
+		b.WriteString("\n" + count("Commits", s.Commits) + count("Files changed", s.FilesChanged) + "\n")
+	}
+	b.WriteString("\n" + mutedText.Render("updated "+m.updated.Format("15:04:05")))
+	return b.String()
+}
+
+// card is one bordered metric: a coloured value over a muted name.
+func card(value, name string, c lipgloss.TerminalColor) string {
+	return rounded.BorderForeground(c).Width(13).
+		Render(bold.Foreground(c).Render(value) + "\n" + mutedText.Render(name))
+}
+
+func count(name string, n int) string {
+	return column.Render(mutedText.Render(name) + "  " + bold.Render(utils.Commas(n)))
+}
+
+// ratioBar shows added against removed lines; any non-zero side gets a cell.
+func ratioBar(added, removed int) string {
+	total := added + removed
+	if total == 0 {
+		return ""
+	}
+	g := added * barWidth / total
+	if added > 0 && g == 0 {
+		g = 1
+	}
+	if removed > 0 && g == barWidth {
+		g = barWidth - 1
+	}
+	return goodText.Render(strings.Repeat("█", g)) + badText.Render(strings.Repeat("▒", barWidth-g))
 }

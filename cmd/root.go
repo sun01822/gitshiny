@@ -204,7 +204,8 @@ func runInteractive(app App) int {
 		return fail(app, 1, errors.New("git config user.name is not configured\n\nRun:\n  git config --global user.name \"Your Name\""))
 	}
 	err = tui.Run(tui.Options{
-		In: app.In, Out: app.Out, Author: name, Now: app.Now,
+		In: app.In, Out: app.Out, Now: app.Now,
+		Repository: filepath.Base(root), Branch: git.Branch(), Author: name,
 		Calculate: func(q domain.Query) (domain.Stats, error) { return compute(git, root, q) },
 		Render:    func(w io.Writer, s domain.Stats) error { return Render(w, s, "text") },
 	})
