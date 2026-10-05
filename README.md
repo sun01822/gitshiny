@@ -16,7 +16,7 @@ curl -fsSL https://raw.githubusercontent.com/sun01822/gitshiny/main/install.sh |
 go install github.com/sun01822/gitshiny@latest
 ```
 
-Make sure `~/.local/bin` (curl) or `$(go env GOPATH)/bin` (Go) is on your `PATH`:
+On Linux / macOS, make sure `~/.local/bin` (curl) or `$(go env GOPATH)/bin` (Go) is on your `PATH`:
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"   # add to ~/.zshrc
@@ -28,7 +28,23 @@ To install somewhere else, set `GITSHINY_INSTALL_DIR`:
 curl -fsSL https://raw.githubusercontent.com/sun01822/gitshiny/main/install.sh | GITSHINY_INSTALL_DIR="$HOME/bin" sh
 ```
 
-Windows: download the `.zip` from the [Releases page](https://github.com/sun01822/gitshiny/releases).
+**Windows** (PowerShell, no admin rights needed, installs to `%LOCALAPPDATA%\Programs\gitshiny`):
+
+```powershell
+$dir = "$env:LOCALAPPDATA\Programs\gitshiny"
+New-Item -ItemType Directory -Force $dir | Out-Null
+Invoke-WebRequest https://github.com/sun01822/gitshiny/releases/latest/download/gitshiny_windows_amd64.zip -OutFile "$env:TEMP\gitshiny.zip"
+Expand-Archive "$env:TEMP\gitshiny.zip" $dir -Force
+[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$dir", "User")
+```
+
+Open a **new** terminal (so it picks up the changed `Path`) and run `gitshiny version`.
+
+- GitShiny needs [Git for Windows](https://git-scm.com/download/win) on your `Path`.
+- Prefer to do it by hand? Download `gitshiny_windows_amd64.zip` from the [Releases page](https://github.com/sun01822/gitshiny/releases) and unzip `gitshiny.exe` into any folder that is on your `Path`.
+- `go install` works on Windows too; the binary lands in `%USERPROFILE%\go\bin`.
+- Only 64-bit Intel/AMD (amd64) is built for Windows.
+- To verify the download, compare `(Get-FileHash "$env:TEMP\gitshiny.zip").Hash` with the `gitshiny_windows_amd64.zip` line in the release's `checksums.txt`.
 
 ## Update
 
@@ -50,7 +66,7 @@ To get a specific version (this is also how you downgrade):
 curl -fsSL https://raw.githubusercontent.com/sun01822/gitshiny/main/install.sh | GITSHINY_VERSION=v0.2.0 sh
 ```
 
-Windows: download the newer `.zip` and replace `gitshiny.exe`.
+Windows: run the install commands again without the last (`Path`) line; `Expand-Archive -Force` replaces `gitshiny.exe`. For a specific version, swap the URL for `https://github.com/sun01822/gitshiny/releases/download/v0.2.0/gitshiny_windows_amd64.zip`.
 
 ## Uninstall
 
@@ -65,7 +81,7 @@ command -v gitshiny                       # prints nothing once it is removed
 - Not sure where it is? Run `command -v gitshiny` first; it prints the path to delete.
 - Installed with `GITSHINY_INSTALL_DIR`? Delete `gitshiny` from that directory.
 - There is nothing else to clean up: GitShiny creates no config, cache or data files, and the installer never edits your shell config. If you added the `export PATH=...` line to `~/.zshrc` only for GitShiny you can remove it by hand, but other tools often use `~/.local/bin`, so leave it if unsure.
-- Windows: delete `gitshiny.exe`.
+- Windows: run `Remove-Item -Recurse "$env:LOCALAPPDATA\Programs\gitshiny"`, then remove that folder from your user `Path` (Settings → "Edit environment variables for your account").
 
 ## Interactive TUI
 
