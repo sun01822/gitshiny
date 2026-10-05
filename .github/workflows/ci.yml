@@ -46,6 +46,19 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "gitshiny version failed" }
           $dir = "$env:LOCALAPPDATA\Programs\gitshiny"
           if (([Environment]::GetEnvironmentVariable('Path', 'User') -split ';') -notcontains $dir) { throw "$dir is not on the user Path" }
+      # The uninstall commands from the README, checked because they rewrite Path.
+      - name: uninstall (README commands)
+        shell: powershell
+        run: |
+          $dir = "$env:LOCALAPPDATA\Programs\gitshiny"
+          $others = [Environment]::GetEnvironmentVariable('Path', 'User') -split ';' | Where-Object { $_ -and $_ -ne $dir }
+          Remove-Item -Recurse -Force $dir
+          $path = [Environment]::GetEnvironmentVariable('Path', 'User') -split ';' | Where-Object { $_ -and $_ -ne $dir }
+          [Environment]::SetEnvironmentVariable('Path', ($path -join ';'), 'User')
+          if (Test-Path $dir) { throw "$dir still exists" }
+          $after = [Environment]::GetEnvironmentVariable('Path', 'User')
+          if (($after -split ';') -contains $dir) { throw "$dir is still on the user Path" }
+          if ($after -ne ($others -join ';')) { throw "other Path entries changed: '$after'" }
       - name: install.ps1 (PowerShell 7, custom directory)
         shell: pwsh
         env:

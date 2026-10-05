@@ -120,7 +120,23 @@ command -v gitshiny
 - Not sure where it is? Run `command -v gitshiny` first; it prints the path to delete.
 - Installed with `GITSHINY_INSTALL_DIR`? Delete `gitshiny` from that directory.
 - There is nothing else to clean up: GitShiny creates no config, cache or data files, and the installer never edits your shell config. If you added the `export PATH=...` line to `~/.zshrc` only for GitShiny you can remove it by hand, but other tools often use `~/.local/bin` and `~/go/bin`, so leave it if unsure.
-- Windows: run `Remove-Item -Recurse "$env:LOCALAPPDATA\Programs\gitshiny"`, then remove that folder from your user `Path` (Settings → "Edit environment variables for your account").
+
+**Windows** (PowerShell) — delete the install folder, then take it off your user `Path`:
+
+```powershell
+$dir = "$env:LOCALAPPDATA\Programs\gitshiny"
+Remove-Item -Recurse -Force $dir
+$path = [Environment]::GetEnvironmentVariable('Path', 'User') -split ';' | Where-Object { $_ -and $_ -ne $dir }
+[Environment]::SetEnvironmentVariable('Path', ($path -join ';'), 'User')
+```
+
+The last two lines remove only the GitShiny folder from `Path`; every other entry is kept. Close the terminal app and open it again, then `gitshiny version` should say `gitshiny` is not recognized.
+
+- "The process cannot access the file" error? A `gitshiny` is still running; close it and run the commands again.
+- Installed with `GITSHINY_INSTALL_DIR`? Put that folder in the first line instead.
+- Installed with `go install`? Run `Remove-Item "$env:USERPROFILE\go\bin\gitshiny.exe"`; there is no `Path` entry to remove.
+- Prefer clicking? Delete the folder in File Explorer, then open Settings, search for "Edit environment variables for your account", edit `Path` and delete the `gitshiny` entry.
+- There is nothing else to clean up on Windows either: no config, cache, registry keys or Start-menu entries.
 
 ## Interactive TUI
 
