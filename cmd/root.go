@@ -2,6 +2,7 @@
 package cmd
 
 import (
+	"bufio"
 	"errors"
 	"flag"
 	"fmt"
@@ -60,12 +61,35 @@ Examples:
   gitshiny stats --yesterday --author Alice --author Bob --format csv
 `
 
+const installHint = `GitShiny is a command-line tool, so double-clicking gitshiny.exe does not
+install anything.
+
+To install it, open PowerShell and run:
+
+  [Net.ServicePointManager]::SecurityProtocol = 'Tls12'; irm https://raw.githubusercontent.com/sun01822/gitshiny/main/install.ps1 | iex
+
+Then open a terminal inside a Git repository and run:
+
+  gitshiny
+
+Press Enter to close this window.
+`
+
+// doubleClicked is a variable so tests can fake a double-click.
+var doubleClicked = ownsConsole
+
 // Execute runs the CLI and returns the process exit code.
 func Execute(app App, args []string) int {
 	if app.Now == nil {
 		app.Now = time.Now
 	}
 	if len(args) == 0 {
+		if doubleClicked() {
+			// Without the wait Windows closes the window before it can be read.
+			fmt.Fprint(app.Out, installHint)
+			bufio.NewReader(app.In).ReadString('\n')
+			return 0
+		}
 		if isTerminal(app.In) && isTerminal(app.Out) {
 			return runInteractive(app)
 		}

@@ -26,7 +26,7 @@ echo
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
 case "$os" in
   linux|darwin) ;;
-  *) die "unsupported OS '$os'. On Windows, download the .zip from https://github.com/$REPO/releases" ;;
+  *) die "unsupported OS '$os'. On Windows, run in PowerShell: irm https://raw.githubusercontent.com/$REPO/main/install.ps1 | iex" ;;
 esac
 ok "OS detected: $os"
 

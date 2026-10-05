@@ -40,23 +40,28 @@ To install somewhere else, set `GITSHINY_INSTALL_DIR`:
 curl -fsSL https://raw.githubusercontent.com/sun01822/gitshiny/main/install.sh | GITSHINY_INSTALL_DIR="$HOME/bin" sh
 ```
 
-**Windows** (PowerShell, no admin rights needed, installs to `%LOCALAPPDATA%\Programs\gitshiny`):
+**Windows** (PowerShell, no admin rights needed, installs to `%LOCALAPPDATA%\Programs\gitshiny`, verifies SHA-256):
 
 ```powershell
-$dir = "$env:LOCALAPPDATA\Programs\gitshiny"
-New-Item -ItemType Directory -Force $dir | Out-Null
-Invoke-WebRequest https://github.com/sun01822/gitshiny/releases/latest/download/gitshiny_windows_amd64.zip -OutFile "$env:TEMP\gitshiny.zip"
-Expand-Archive "$env:TEMP\gitshiny.zip" $dir -Force
-[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$dir", "User")
+[Net.ServicePointManager]::SecurityProtocol = 'Tls12'; irm https://raw.githubusercontent.com/sun01822/gitshiny/main/install.ps1 | iex
 ```
 
-Open a **new** terminal (so it picks up the changed `Path`) and run `gitshiny version`.
+Paste it as one line into **PowerShell**. From the old Command Prompt (`cmd.exe`) use this instead:
 
+```bat
+powershell -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol = 'Tls12'; irm https://raw.githubusercontent.com/sun01822/gitshiny/main/install.ps1 | iex"
+```
+
+Then go to a Git repository and run `gitshiny`.
+
+- `gitshiny` is not recognized? Close the terminal app completely (Windows Terminal, VS Code, ...) and open it again; a new tab is not always enough to pick up the changed `Path`.
+- `gitshiny.exe` is not an installer. Double-clicking it only shows these instructions; it is meant to be run from a terminal.
+- If the install fails, the last line says which step failed and why. Please include it when you open an issue.
 - GitShiny needs [Git for Windows](https://git-scm.com/download/win) on your `Path`.
+- To install somewhere else, run `$env:GITSHINY_INSTALL_DIR = "C:\Tools\gitshiny"` before the install command.
 - Prefer to do it by hand? Download `gitshiny_windows_amd64.zip` from the [Releases page](https://github.com/sun01822/gitshiny/releases) and unzip `gitshiny.exe` into any folder that is on your `Path`.
 - `go install` works on Windows too; the binary lands in `%USERPROFILE%\go\bin`.
 - Only 64-bit Intel/AMD (amd64) is built for Windows.
-- To verify the download, compare `(Get-FileHash "$env:TEMP\gitshiny.zip").Hash` with the `gitshiny_windows_amd64.zip` line in the release's `checksums.txt`.
 
 ## Update
 
@@ -84,7 +89,11 @@ To get a specific version (this is also how you downgrade):
 curl -fsSL https://raw.githubusercontent.com/sun01822/gitshiny/main/install.sh | GITSHINY_VERSION=v0.2.0 sh
 ```
 
-Windows: run the install commands again without the last (`Path`) line; `Expand-Archive -Force` replaces `gitshiny.exe`. For a specific version, swap the URL for `https://github.com/sun01822/gitshiny/releases/download/v0.2.0/gitshiny_windows_amd64.zip`.
+Windows: run the install command again; it replaces `gitshiny.exe` with the latest release. For a specific version, set it first:
+
+```powershell
+$env:GITSHINY_VERSION = "v0.5.0"
+```
 
 ## Uninstall
 
@@ -231,7 +240,8 @@ repositories/    git access
 tui/             interactive Bubble Tea UI
 utils/           time parsing, number formatting
 scripts/         bash MVP, release build, set-owner
-install.sh       curl installer
+install.sh       curl installer (Linux / macOS)
+install.ps1      PowerShell installer (Windows)
 ```
 
 The statistics engine never touches the UI: the CLI and the Bubble Tea TUI both call it through the same `compute` function.

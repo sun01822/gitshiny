@@ -25,3 +25,33 @@ jobs:
           fi
       - run: go vet ./...
       - run: go test ./...
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: go vet ./...
+      - run: go test ./...
+      # Run the installer the way the README does (through iex), against the
+      # latest release, and check gitshiny is usable in the same session.
+      - name: install.ps1 (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          Get-Content -Raw install.ps1 | iex
+          gitshiny version
+          if ($LASTEXITCODE -ne 0) { throw "gitshiny version failed" }
+          $dir = "$env:LOCALAPPDATA\Programs\gitshiny"
+          if (([Environment]::GetEnvironmentVariable('Path', 'User') -split ';') -notcontains $dir) { throw "$dir is not on the user Path" }
+      - name: install.ps1 (PowerShell 7, custom directory)
+        shell: pwsh
+        env:
+          GITSHINY_INSTALL_DIR: ${{ runner.temp }}\gitshiny-pwsh
+        run: |
+          Get-Content -Raw install.ps1 | iex
+          gitshiny version
+          if ($LASTEXITCODE -ne 0) { throw "gitshiny version failed" }
+          if (([Environment]::GetEnvironmentVariable('Path', 'User') -split ';') -notcontains $env:GITSHINY_INSTALL_DIR) { throw "$env:GITSHINY_INSTALL_DIR is not on the user Path" }

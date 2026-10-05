@@ -167,3 +167,16 @@ func TestEmptyRepoAndVersion(t *testing.T) {
 		t.Errorf("version = %q", out)
 	}
 }
+
+func TestDoubleClickShowsInstallHintAndWaits(t *testing.T) {
+	doubleClicked = func() bool { return true }
+	defer func() { doubleClicked = ownsConsole }()
+	in := strings.NewReader("\nleft over")
+	var out bytes.Buffer
+	if code := Execute(App{In: in, Out: &out, Err: &out}, nil); code != 0 {
+		t.Fatalf("exit code %d", code)
+	}
+	if !strings.Contains(out.String(), "install.ps1 | iex") {
+		t.Fatalf("no install hint in output:\n%s", out.String())
+	}
+}
