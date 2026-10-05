@@ -16,11 +16,23 @@ curl -fsSL https://raw.githubusercontent.com/sun01822/gitshiny/main/install.sh |
 go install github.com/sun01822/gitshiny@latest
 ```
 
-On Linux / macOS, make sure `~/.local/bin` (curl) or `$(go env GOPATH)/bin` (Go) is on your `PATH`:
+On Linux / macOS, if your shell says `gitshiny: command not found`, the install directory is not on your `PATH`. Add it once.
+
+Installed with curl:
 
 ```bash
-export PATH="$HOME/.local/bin:$PATH"   # add to ~/.zshrc
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
 ```
+
+Installed with Go:
+
+```bash
+echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+Using bash? Replace `~/.zshrc` with `~/.bashrc`. If `go env GOPATH` prints something other than `~/go`, use that path plus `/bin` instead. `command -v gitshiny` prints the binary's path once it is found.
 
 To install somewhere else, set `GITSHINY_INSTALL_DIR`:
 
@@ -52,11 +64,17 @@ Already installed? Check what you have, then install again over it — the insta
 
 ```bash
 gitshiny version
+```
 
-# installed with curl: re-run the installer
+Installed with curl — re-run the installer:
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/sun01822/gitshiny/main/install.sh | sh
+```
 
-# installed with Go
+Installed with Go:
+
+```bash
 go install github.com/sun01822/gitshiny@latest
 ```
 
@@ -70,17 +88,29 @@ Windows: run the install commands again without the last (`Path`) line; `Expand-
 
 ## Uninstall
 
-GitShiny is a single binary. Delete it and it is gone:
+GitShiny is a single binary. Delete it and it is gone.
+
+Installed with curl:
 
 ```bash
-rm ~/.local/bin/gitshiny                  # installed with curl
-rm "$(go env GOPATH)/bin/gitshiny"        # installed with Go
-command -v gitshiny                       # prints nothing once it is removed
+rm ~/.local/bin/gitshiny
+```
+
+Installed with Go:
+
+```bash
+rm "$(go env GOPATH)/bin/gitshiny"
+```
+
+Check it is gone — this prints nothing once it is removed:
+
+```bash
+command -v gitshiny
 ```
 
 - Not sure where it is? Run `command -v gitshiny` first; it prints the path to delete.
 - Installed with `GITSHINY_INSTALL_DIR`? Delete `gitshiny` from that directory.
-- There is nothing else to clean up: GitShiny creates no config, cache or data files, and the installer never edits your shell config. If you added the `export PATH=...` line to `~/.zshrc` only for GitShiny you can remove it by hand, but other tools often use `~/.local/bin`, so leave it if unsure.
+- There is nothing else to clean up: GitShiny creates no config, cache or data files, and the installer never edits your shell config. If you added the `export PATH=...` line to `~/.zshrc` only for GitShiny you can remove it by hand, but other tools often use `~/.local/bin` and `~/go/bin`, so leave it if unsure.
 - Windows: run `Remove-Item -Recurse "$env:LOCALAPPDATA\Programs\gitshiny"`, then remove that folder from your user `Path` (Settings → "Edit environment variables for your account").
 
 ## Interactive TUI
@@ -212,15 +242,24 @@ The statistics engine never touches the UI: the CLI and the Bubble Tea TUI both 
 go vet ./...
 go test ./...
 go build -o gitshiny .
-./gitshiny                  # TUI
-./gitshiny stats --today    # CLI
+./gitshiny
+./gitshiny stats --today
 ```
+
+`./gitshiny` opens the TUI; `./gitshiny stats --today` runs the CLI.
 
 ## Publish a release
 
+Once, to replace the placeholder owner name:
+
 ```bash
-scripts/set-owner.sh YOUR_GITHUB_NAME   # once, replaces the placeholder
-git tag vX.Y.Z && git push origin vX.Y.Z    # GitHub Actions builds + publishes
+scripts/set-owner.sh YOUR_GITHUB_NAME
+```
+
+Then tag and push; GitHub Actions builds and publishes:
+
+```bash
+git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
 The workflow tests, builds Linux/macOS (amd64, arm64) and Windows (amd64) archives, writes `checksums.txt`, and creates the GitHub Release the installer downloads from. `go install` works as soon as the repo is public and tagged.
