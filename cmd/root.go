@@ -43,6 +43,9 @@ Usage:
 Flags for "stats":
   --today               today (default when no range is given)
   --yesterday           yesterday
+  --week                this week, from Monday
+  --month               this month, from the 1st
+  --days N              the last N days, today included
   --since  "TIME"       start of a custom range
   --until  "TIME"       end of a custom range
   --author NAME         author to include (repeatable or comma separated;
@@ -50,6 +53,9 @@ Flags for "stats":
   --all-authors         include every author
   --branch NAME         branch to analyse (default: current branch)
   --all-branches        analyse all branches
+  --path PATH           only count changes under PATH (repeatable)
+  --exclude PATH        leave PATH out, e.g. go.sum or '*.lock' (repeatable)
+  --by author|day|file  add a breakdown, one row per author, day or file
   --format text|json|csv   output format (default: text, env GITSHINY_FORMAT)
   -C DIR                run as if started in DIR
 
@@ -59,6 +65,7 @@ Examples:
   gitshiny stats --today --format json
   gitshiny stats --since "2026-10-01 09:00:00" --until "2026-10-01 18:00:00"
   gitshiny stats --yesterday --author Alice --author Bob --format csv
+  gitshiny stats --week --all-authors --by author --exclude go.sum
 `
 
 const installHint = `GitShiny is a command-line tool, so double-clicking gitshiny.exe does not
@@ -128,6 +135,9 @@ func runStats(app App, args []string) int {
 	fs.SetOutput(app.Err)
 	today := fs.Bool("today", false, "")
 	yesterday := fs.Bool("yesterday", false, "")
+	week := fs.Bool("week", false, "")
+	month := fs.Bool("month", false, "")
+	days := fs.Int("days", 0, "")
 	since := fs.String("since", "", "")
 	until := fs.String("until", "", "")
 	var authors listFlag
@@ -135,6 +145,10 @@ func runStats(app App, args []string) int {
 	allAuthors := fs.Bool("all-authors", false, "")
 	branch := fs.String("branch", "", "")
 	allBranches := fs.Bool("all-branches", false, "")
+	var paths, exclude listFlag
+	fs.Var(&paths, "path", "")
+	fs.Var(&exclude, "exclude", "")
+	by := fs.String("by", "", "")
 	format := fs.String("format", cfg.Format, "")
 	dir := fs.String("C", app.Dir, "")
 	fs.Usage = func() { fmt.Fprint(app.Err, usage) }
@@ -153,8 +167,16 @@ func runStats(app App, args []string) int {
 		return fail(app, 2, fmt.Errorf("unknown format %q (use text, json or csv)", *format))
 	}
 	custom := *since != "" || *until != ""
-	if n := b2i(*today) + b2i(*yesterday) + b2i(custom); n > 1 {
-		return fail(app, 2, errors.New("choose one of --today, --yesterday or --since/--until"))
+	if n := b2i(*today) + b2i(*yesterday) + b2i(*week) + b2i(*month) + b2i(*days != 0) + b2i(custom); n > 1 {
+		return fail(app, 2, errors.New("choose one of --today, --yesterday, --week, --month, --days or --since/--until"))
+	}
+	daysSet := false
+	fs.Visit(func(f *flag.Flag) { daysSet = daysSet || f.Name == "days" })
+	if daysSet && *days < 1 {
+		return fail(app, 2, errors.New("--days must be 1 or more"))
+	}
+	if *by != "" && *by != "author" && *by != "day" && *by != "file" {
+		return fail(app, 2, fmt.Errorf("unknown --by %q (use author, day or file)", *by))
 	}
 	if *allBranches && *branch != "" {
 		return fail(app, 2, errors.New("--branch and --all-branches cannot be combined"))
@@ -164,11 +186,24 @@ func runStats(app App, args []string) int {
 	}
 
 	now := app.Now()
-	q := domain.Query{Branch: *branch, AllBranches: *allBranches}
+	q := domain.Query{Branch: *branch, AllBranches: *allBranches, Paths: paths, Exclude: exclude, GroupBy: *by}
 	switch {
 	case *yesterday:
 		q.Since, q.Until = utils.DayRange(now.AddDate(0, 0, -1))
 		q.Period = "Yesterday"
+	case *week:
+		q.Since, q.Until = utils.WeekRange(now)
+		q.Period = "This week"
+	case *month:
+		q.Since, q.Until = utils.MonthRange(now)
+		q.Period = "This month"
+	case *days > 0:
+		q.Since, _ = utils.DayRange(now.AddDate(0, 0, 1-*days))
+		_, q.Until = utils.DayRange(now)
+		q.Period = fmt.Sprintf("Last %d days", *days)
+		if *days == 1 {
+			q.Period = "Last 1 day"
+		}
 	case custom:
 		var err error
 		if *since != "" {

@@ -128,6 +128,70 @@ func TestStatsCSVAndText(t *testing.T) {
 	}
 }
 
+func TestPresets(t *testing.T) {
+	dir := newRepo(t) // "now" is Thursday 2026-10-01
+	for _, c := range []struct {
+		flags   []string
+		period  string
+		commits int
+	}{
+		{[]string{"--week"}, "This week", 3},   // from Monday 2026-09-28
+		{[]string{"--month"}, "This month", 2}, // from 2026-10-01
+		{[]string{"--days", "1"}, "Last 1 day", 2},
+		{[]string{"--days", "2"}, "Last 2 days", 3},
+	} {
+		r := stats(t, dir, append(c.flags, "--all-authors")...)
+		if r.Period != c.period || r.Commits != c.commits {
+			t.Errorf("%v = %+v", c.flags, r)
+		}
+	}
+}
+
+func TestPathFilters(t *testing.T) {
+	dir := newRepo(t)
+	all := []string{"--all-authors", "--since", "2026-09-30"}
+	if r := stats(t, dir, append(all, "--exclude", "b.txt")...); r.Added != 5 || r.FilesChanged != 1 {
+		t.Errorf("exclude = %+v", r)
+	}
+	if r := stats(t, dir, append(all, "--path", "b.txt")...); r.Added != 10 || r.Commits != 1 {
+		t.Errorf("path = %+v", r)
+	}
+}
+
+func TestBreakdown(t *testing.T) {
+	dir := newRepo(t)
+	all := []string{"stats", "--all-authors", "--since", "2026-09-30", "--by", "author", "--format"}
+	_, out, _ := run(t, dir, append(all, "csv")...)
+	if want := "author,added,removed,net_growth,commits,files_changed\nBob,10,0,10,1,1\nAlice,5,1,4,2,1\n"; out != want {
+		t.Errorf("csv = %q", out)
+	}
+	_, out, _ = run(t, dir, append(all, "json")...)
+	var r struct {
+		Added  int
+		By     string
+		Groups []struct {
+			Key string
+			Net int `json:"net_growth"`
+		}
+	}
+	if err := json.Unmarshal([]byte(out), &r); err != nil || r.Added != 15 || r.By != "author" ||
+		len(r.Groups) != 2 || r.Groups[0].Key != "Bob" || r.Groups[1].Net != 4 {
+		t.Errorf("json = %s (%v)", out, err)
+	}
+	_, out, _ = run(t, dir, append(all, "text")...)
+	if !strings.Contains(out, "Added lines    : 15") || !strings.Contains(out, "By author") || !strings.Contains(out, "Alice") {
+		t.Errorf("text = %q", out)
+	}
+	// An empty breakdown is still an array, so `jq '.groups[]'` keeps working.
+	if _, out, _ = run(t, dir, "stats", "--author", "Nobody", "--by", "day", "--format", "json"); !strings.Contains(out, `"groups": []`) {
+		t.Errorf("empty breakdown json = %s", out)
+	}
+	// Without --by nothing about the breakdown leaks into the output.
+	if _, out, _ = run(t, dir, "stats", "--today", "--format", "json"); strings.Contains(out, "groups") || strings.Contains(out, `"by"`) {
+		t.Errorf("plain json = %s", out)
+	}
+}
+
 func TestErrors(t *testing.T) {
 	dir := newRepo(t)
 	if code, _, e := run(t, t.TempDir(), "stats"); code != 1 || !strings.Contains(e, "not a Git repository") {
@@ -141,6 +205,11 @@ func TestErrors(t *testing.T) {
 	}
 	if code, _, _ := run(t, dir, "stats", "--since", "2026-10-02", "--until", "2026-10-01"); code != 2 {
 		t.Errorf("reversed range code = %d", code)
+	}
+	for _, bad := range [][]string{{"--week", "--days", "3"}, {"--days", "-1"}, {"--days", "0"}, {"--by", "month"}} {
+		if code, _, _ := run(t, dir, append([]string{"stats"}, bad...)...); code != 2 {
+			t.Errorf("%v code = %d", bad, code)
+		}
 	}
 	if code, _, _ := run(t, dir, "nope"); code != 2 {
 		t.Errorf("unknown command code = %d", code)

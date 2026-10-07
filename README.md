@@ -1,6 +1,194 @@
 # GitShiny
 
-Git contribution statistics for your terminal — added lines, removed lines, net growth, commits and files changed for **today**, **yesterday** or **any time range**. Use the interactive TUI, or the `stats` command for scripts and CI. No `git log | awk` gymnastics. Single static binary, no runtime dependencies.
+[![CI](https://github.com/sun01822/gitshiny/actions/workflows/ci.yml/badge.svg)](https://github.com/sun01822/gitshiny/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/sun01822/gitshiny)](https://github.com/sun01822/gitshiny/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+**How much did I write today?** GitShiny answers that from your Git history: added lines, removed lines, net growth, commits and files changed, for today, yesterday, this week, this month or any time range. Use the interactive TUI, or the `stats` command for scripts and CI. No `git log | awk` gymnastics.
+
+```text
+╭────────────────────────────────────────────────────╮
+│                                                    │
+│   ✦ GitShiny                      gitshiny · main  │
+│                                                    │
+│  Today · sun01822                                  │
+│  2026-10-02 00:00 → 2026-10-02 23:59               │
+│                                                    │
+│  ╭─────────────╮ ╭─────────────╮ ╭─────────────╮   │
+│  │ +2,152      │ │ -141        │ │ +2,011      │   │
+│  │ added       │ │ removed     │ │ net growth  │   │
+│  ╰─────────────╯ ╰─────────────╯ ╰─────────────╯   │
+│  ████████████████████████████████████████████▒▒▒   │
+│                                                    │
+│  Commits  7              Files changed  25         │
+│                                                    │
+╰────────────────────────────────────────────────────╯
+```
+
+## Features
+
+- **Interactive TUI**: pick a range with one key, switch between your commits and everyone's, refresh in place.
+- **Ranges**: today, yesterday, this week, this month, the last N days, or any start and end time.
+- **Filters**: by author (one, several or all), by branch (current, named or all), and by path (`--path src/`, `--exclude go.sum`).
+- **Breakdowns**: `--by author`, `--by day` or `--by file` shows who, when and where the lines went.
+- **Script friendly**: `text`, `json` and `csv` output, meaningful exit codes, never opens the TUI when piped.
+- **Nothing to manage**: one static binary for Linux, macOS and Windows. It only needs `git`, and it writes no config, cache or data files.
+
+## Quick start
+
+Linux / macOS:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sun01822/gitshiny/main/install.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+[Net.ServicePointManager]::SecurityProtocol = 'Tls12'; irm https://raw.githubusercontent.com/sun01822/gitshiny/main/install.ps1 | iex
+```
+
+With Go 1.23+: `go install github.com/sun01822/gitshiny@latest`
+
+Then, inside any Git repository:
+
+```bash
+gitshiny                                   # interactive TUI
+gitshiny stats --week                      # this week, as text
+gitshiny stats --month --all-authors --by author
+gitshiny stats --today --format json       # for scripts and CI
+```
+
+`command not found`, a custom install directory, or a specific version? See [Install](#install).
+
+## Contents
+
+- [Interactive TUI](#interactive-tui)
+- [CLI](#cli)
+- [Install](#install) · [Update](#update) · [Uninstall](#uninstall)
+- [Layout](#layout) · [Develop](#develop) · [Publish a release](#publish-a-release)
+- [License](#license)
+
+## Interactive TUI
+
+Run `gitshiny` with no arguments in any Git repository.
+
+```text
+╭────────────────────────────────────────────────────╮
+│                                                    │
+│   ✦ GitShiny                      gitshiny · main  │
+│                                                    │
+│  TIME RANGE                                        │
+│  ▸ 1  Today        Fri, Oct 2                      │
+│    2  Yesterday    Thu, Oct 1                      │
+│    3  This week    since Mon, Sep 28               │
+│    4  This month   since Oct 1                     │
+│    5  Custom       pick any start and end          │
+│                                                    │
+│  AUTHOR                                            │
+│  sun01822                                          │
+│                                                    │
+│  ↑/↓ move · enter/1-5 select · a authors · q quit  │
+│                                                    │
+╰────────────────────────────────────────────────────╯
+```
+
+```text
+╭────────────────────────────────────────────────────╮
+│                                                    │
+│   ✦ GitShiny                      gitshiny · main  │
+│                                                    │
+│  Today · sun01822                                  │
+│  2026-10-02 00:00 → 2026-10-02 23:59               │
+│                                                    │
+│  ╭─────────────╮ ╭─────────────╮ ╭─────────────╮   │
+│  │ +2,152      │ │ -141        │ │ +2,011      │   │
+│  │ added       │ │ removed     │ │ net growth  │   │
+│  ╰─────────────╯ ╰─────────────╯ ╰─────────────╯   │
+│  ████████████████████████████████████████████▒▒▒   │
+│                                                    │
+│  Commits  7              Files changed  25         │
+│                                                    │
+│  updated 18:20:39                                  │
+│                                                    │
+│  r refresh · a authors · esc menu · q quit         │
+│                                                    │
+╰────────────────────────────────────────────────────╯
+```
+
+In a real terminal it is in colour: the selected row and title are filled with the accent colour, added lines are green, removed lines are red, and the bar shows added against removed. Colours adapt to light and dark terminals and are switched off by `NO_COLOR`.
+
+| Key | Action |
+|---|---|
+| `↑` `↓` or `j` `k` | move (wraps around) |
+| `1` to `5` | jump straight to Today, Yesterday, This week, This month, Custom |
+| `a` | switch between your commits and all authors |
+| `enter` | select, next field, calculate |
+| `tab` | switch between Start and End |
+| `r` | refresh, or retry after an error |
+| `esc` | back to the menu |
+| `q` | quit with a short thank-you animation (any key skips it) |
+| `ctrl+c` | quit immediately |
+
+- **Custom** takes the same time formats as `--since` / `--until` below; the fields support cursor movement and paste.
+- While GitShiny reads the history it shows a spinner and a sliding bar. Git usually answers in milliseconds, so the TUI holds that screen for about 0.7 s to keep it visible; `gitshiny stats` is never delayed.
+- Quit from the statistics screen and the result is printed as plain text, so it stays in your scrollback.
+- The TUI starts only when both input and output are a terminal. Piped or redirected runs print the usage text instead, so scripts never hang on it.
+
+## CLI
+
+For scripts, CI and one-off checks.
+
+```bash
+gitshiny stats --today
+gitshiny stats --yesterday
+gitshiny stats --since "2026-10-01 09:00:00" --until "2026-10-01 18:00:00"
+gitshiny stats --today --format json
+gitshiny stats --yesterday --author Alice --author Bob --format csv
+gitshiny stats --all-authors --all-branches --since 2026-10-01
+gitshiny stats --week --exclude go.sum --exclude '*.lock'
+gitshiny stats --month --all-authors --by author
+gitshiny stats --days 7 --by day --format csv
+```
+
+| Flag | Meaning |
+|---|---|
+| `--today` / `--yesterday` | preset ranges (default: today) |
+| `--week` / `--month` | this week from Monday, this month from the 1st, both up to today |
+| `--days N` | the last `N` days, today included |
+| `--since` / `--until` | custom range: `YYYY-MM-DD HH:MM:SS`, `YYYY-MM-DD HH:MM`, `YYYY-MM-DD`, or RFC3339 |
+| `--author NAME` | repeatable or comma separated; default is `git config user.name` |
+| `--all-authors` | include everybody |
+| `--branch NAME` / `--all-branches` | default is the current branch |
+| `--path PATH` | only count changes under `PATH`; repeatable or comma separated |
+| `--exclude PATH` | leave `PATH` out, e.g. `go.sum` or `'*.lock'`; repeatable or comma separated |
+| `--by author\|day\|file` | add a breakdown with one row per author, day or file |
+| `--format text\|json\|csv` | default `text` (or set `GITSHINY_FORMAT`) |
+| `-C DIR` | run as if started in `DIR` |
+
+JSON output (handy for CI):
+
+```json
+{
+  "repository": "gitshiny",
+  "author": "Sun",
+  "branch": "main",
+  "period": "Today",
+  "since": "2026-10-02 00:00:00",
+  "until": "2026-10-02 23:59:59",
+  "added": 842,
+  "removed": 213,
+  "net_growth": 629,
+  "commits": 12,
+  "files_changed": 37
+}
+```
+
+`--by` adds a table under the text output and two keys to the JSON, `"by"` and `"groups"` (each group has `key`, `added`, `removed`, `net_growth`, `commits`, `files_changed`). With `--format csv` it prints one row per group instead of the totals row. Days are listed oldest first; authors and files with the most changed lines come first. Without `--by` the output is the same as before.
+
+`--path` and `--exclude` take [git pathspecs](https://git-scm.com/docs/gitglossary#Documentation/gitglossary.txt-pathspec) relative to the directory you run in. Quote wildcards so the shell leaves them alone.
+
+Notes: merge commits are ignored; binary files count toward *files changed* but not lines; author matching is a substring match (git's `--author` semantics); times use your local time zone unless you pass an RFC3339 offset.
 
 ## Install
 
@@ -137,112 +325,6 @@ The last two lines remove only the GitShiny folder from `Path`; every other entr
 - Installed with `go install`? Run `Remove-Item "$env:USERPROFILE\go\bin\gitshiny.exe"`; there is no `Path` entry to remove.
 - Prefer clicking? Delete the folder in File Explorer, then open Settings, search for "Edit environment variables for your account", edit `Path` and delete the `gitshiny` entry.
 - There is nothing else to clean up on Windows either: no config, cache, registry keys or Start-menu entries.
-
-## Interactive TUI
-
-Run `gitshiny` with no arguments in any Git repository.
-
-```text
-╭────────────────────────────────────────────────────╮
-│                                                    │
-│   ✦ GitShiny                      gitshiny · main  │
-│                                                    │
-│  TIME RANGE                                        │
-│  ▸ 1  Today        Fri, Oct 2                      │
-│    2  Yesterday    Thu, Oct 1                      │
-│    3  Custom       pick any start and end          │
-│                                                    │
-│  AUTHOR                                            │
-│  sun01822                                          │
-│                                                    │
-│  ↑/↓ move · enter select · 1-3 jump · q quit       │
-│                                                    │
-╰────────────────────────────────────────────────────╯
-```
-
-```text
-╭────────────────────────────────────────────────────╮
-│                                                    │
-│   ✦ GitShiny                      gitshiny · main  │
-│                                                    │
-│  Today · sun01822                                  │
-│  2026-10-02 00:00 → 2026-10-02 23:59               │
-│                                                    │
-│  ╭─────────────╮ ╭─────────────╮ ╭─────────────╮   │
-│  │ +2,152      │ │ -141        │ │ +2,011      │   │
-│  │ added       │ │ removed     │ │ net growth  │   │
-│  ╰─────────────╯ ╰─────────────╯ ╰─────────────╯   │
-│  ████████████████████████████████████████████▒▒▒   │
-│                                                    │
-│  Commits  7              Files changed  25         │
-│                                                    │
-│  updated 18:20:39                                  │
-│                                                    │
-│  r refresh · esc menu · q quit                     │
-│                                                    │
-╰────────────────────────────────────────────────────╯
-```
-
-In a real terminal it is in colour: the selected row and title are filled with the accent colour, added lines are green, removed lines are red, and the bar shows added against removed. Colours adapt to light and dark terminals and are switched off by `NO_COLOR`.
-
-| Key | Action |
-|---|---|
-| `↑` `↓` or `j` `k` | move (wraps around) |
-| `1` `2` `3` | jump straight to Today, Yesterday, Custom |
-| `enter` | select, next field, calculate |
-| `tab` | switch between Start and End |
-| `r` | refresh, or retry after an error |
-| `esc` | back to the menu |
-| `q` | quit with a short thank-you animation (any key skips it) |
-| `ctrl+c` | quit immediately |
-
-- **Custom** takes the same time formats as `--since` / `--until` below; the fields support cursor movement and paste.
-- While GitShiny reads the history it shows a spinner and a sliding bar. Git usually answers in milliseconds, so the TUI holds that screen for about 0.7 s to keep it visible; `gitshiny stats` is never delayed.
-- Quit from the statistics screen and the result is printed as plain text, so it stays in your scrollback.
-- The TUI starts only when both input and output are a terminal. Piped or redirected runs print the usage text instead, so scripts never hang on it.
-
-## CLI
-
-For scripts, CI and one-off checks.
-
-```bash
-gitshiny stats --today
-gitshiny stats --yesterday
-gitshiny stats --since "2026-10-01 09:00:00" --until "2026-10-01 18:00:00"
-gitshiny stats --today --format json
-gitshiny stats --yesterday --author Alice --author Bob --format csv
-gitshiny stats --all-authors --all-branches --since 2026-10-01
-```
-
-| Flag | Meaning |
-|---|---|
-| `--today` / `--yesterday` | preset ranges (default: today) |
-| `--since` / `--until` | custom range: `YYYY-MM-DD HH:MM:SS`, `YYYY-MM-DD HH:MM`, `YYYY-MM-DD`, or RFC3339 |
-| `--author NAME` | repeatable or comma separated; default is `git config user.name` |
-| `--all-authors` | include everybody |
-| `--branch NAME` / `--all-branches` | default is the current branch |
-| `--format text\|json\|csv` | default `text` (or set `GITSHINY_FORMAT`) |
-| `-C DIR` | run as if started in `DIR` |
-
-JSON output (handy for CI):
-
-```json
-{
-  "repository": "gitshiny",
-  "author": "Sun",
-  "branch": "main",
-  "period": "Today",
-  "since": "2026-10-02 00:00:00",
-  "until": "2026-10-02 23:59:59",
-  "added": 842,
-  "removed": 213,
-  "net_growth": 629,
-  "commits": 12,
-  "files_changed": 37
-}
-```
-
-Notes: merge commits are ignored; binary files count toward *files changed* but not lines; author matching is a substring match (git's `--author` semantics); times use your local time zone unless you pass an RFC3339 offset.
 
 ## Layout
 

@@ -94,7 +94,12 @@ func LogArgs(q domain.Query) []string {
 	case q.Branch != "":
 		args = append(args, q.Branch)
 	}
-	return append(args, "--")
+	args = append(args, "--")
+	args = append(args, q.Paths...)
+	for _, p := range q.Exclude {
+		args = append(args, ":(exclude)"+p)
+	}
+	return args
 }
 
 // Log returns the commits matching q.

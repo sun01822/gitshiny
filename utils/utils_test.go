@@ -45,3 +45,25 @@ func TestDayRange(t *testing.T) {
 		t.Errorf("DayRange = %v .. %v", s, e)
 	}
 }
+
+func TestWeekAndMonthRange(t *testing.T) {
+	const day = "2006-01-02 15:04:05"
+	for now, want := range map[string]string{
+		"2026-10-05": "2026-10-05", // Monday starts its own week
+		"2026-10-07": "2026-10-05",
+		"2026-10-04": "2026-09-28", // Sunday belongs to the week before
+	} {
+		n, _ := time.Parse("2006-01-02 15:04", now+" 15:04")
+		s, e := WeekRange(n)
+		if s.Format(day) != want+" 00:00:00" || e.Format(day) != now+" 23:59:59" {
+			t.Errorf("WeekRange(%s) = %v .. %v", now, s, e)
+		}
+	}
+	for now, want := range map[string]string{"2026-10-01": "2026-10-01", "2026-10-31": "2026-10-01"} {
+		n, _ := time.Parse("2006-01-02 15:04", now+" 15:04")
+		s, e := MonthRange(n)
+		if s.Format(day) != want+" 00:00:00" || e.Format(day) != now+" 23:59:59" {
+			t.Errorf("MonthRange(%s) = %v .. %v", now, s, e)
+		}
+	}
+}
