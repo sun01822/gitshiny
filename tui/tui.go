@@ -65,9 +65,9 @@ const (
 	farewellScreen
 )
 
-var periods = []string{"Today", "Yesterday", "Custom"}
+var periods = []string{"Today", "Yesterday", "This week", "This month", "This year", "Custom"}
 
-const custom = 2 // index into periods
+const custom = 5 // index into periods
 
 type (
 	statsMsg    domain.Stats
@@ -130,6 +130,16 @@ func (m model) query() (domain.Query, error) {
 		q.Since, q.Until = utils.DayRange(now)
 	case 1:
 		q.Since, q.Until = utils.DayRange(now.AddDate(0, 0, -1))
+	case 2, 3, 4: // week, month and year run from their start to the end of today
+		_, q.Until = utils.DayRange(now)
+		switch m.cursor {
+		case 2:
+			q.Since = utils.WeekStart(now)
+		case 3:
+			q.Since = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+		default:
+			q.Since = time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
+		}
 	default:
 		var err error
 		if q.Since, err = utils.ParseTime(m.inputs[0].Value(), now.Location(), false); err != nil {
@@ -240,7 +250,7 @@ func (m model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cursor = (m.cursor + len(periods) - 1) % len(periods)
 		case "down", "j":
 			m.cursor = (m.cursor + 1) % len(periods)
-		case "1", "2", "3":
+		case "1", "2", "3", "4", "5", "6":
 			m.cursor = int(s[0] - '1')
 			return m.choose()
 		case "enter":
@@ -310,7 +320,7 @@ func (m model) View() string {
 	var body, keys string
 	switch m.screen {
 	case menuScreen:
-		body, keys = m.menuView(), help("↑/↓", "move", "enter", "select", "1-3", "jump", "q", "quit")
+		body, keys = m.menuView(), help("↑/↓", "move", "enter", "select", "1-6", "jump", "q", "quit")
 	case customScreen:
 		body, keys = m.customView(), help("tab", "switch", "enter", "next/calculate", "esc", "back")
 	case loadingScreen:
@@ -353,7 +363,9 @@ func help(pairs ...string) string {
 
 func (m model) menuView() string {
 	now := m.o.Now()
-	hints := []string{now.Format("Mon, Jan 2"), now.AddDate(0, 0, -1).Format("Mon, Jan 2"), "pick any start and end"}
+	hints := []string{now.Format("Mon, Jan 2"), now.AddDate(0, 0, -1).Format("Mon, Jan 2"),
+		utils.WeekStart(now).Format("Jan 2") + " → " + now.Format("Jan 2"),
+		now.Format("January 2006"), now.Format("2006"), "pick any start and end"}
 	var b strings.Builder
 	b.WriteString(label.Render("TIME RANGE") + "\n")
 	for i, p := range periods {

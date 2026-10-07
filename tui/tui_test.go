@@ -100,21 +100,32 @@ func TestPeriods(t *testing.T) {
 	if h.seen[0].Period != "Yesterday" || h.seen[0].Since.Day() != 1 {
 		t.Errorf("yesterday = %+v", h.seen[0])
 	}
-	if h = newHarness().press("up", "up", "enter"); h.seen[0].Period != "Yesterday" {
+	if h = newHarness().press("up", "up", "enter"); h.seen[0].Period != "This year" {
 		t.Errorf("up should wrap around: %+v", h.seen[0])
 	}
 	if h = newHarness().press("2"); len(h.seen) != 1 || h.seen[0].Period != "Yesterday" {
 		t.Errorf("shortcut 2 = %+v", h.seen)
 	}
 
-	h = newHarness().press("3", "2026-10-01 09:00:00", "enter", "2026-10-01 18:00:00", "enter")
+	// Week, month and year run from their start to the end of today (Fri, Oct 2).
+	for _, c := range []struct{ key, period, since string }{
+		{"3", "This week", "2026-09-28 00:00"}, {"4", "This month", "2026-10-01 00:00"}, {"5", "This year", "2026-01-01 00:00"},
+	} {
+		h = newHarness().press(c.key)
+		if len(h.seen) != 1 || h.seen[0].Period != c.period || h.seen[0].Since.Format(layout) != c.since ||
+			h.seen[0].Until.Format(layout) != "2026-10-02 23:59" {
+			t.Errorf("%s = %+v", c.period, h.seen)
+		}
+	}
+
+	h = newHarness().press("6", "2026-10-01 09:00:00", "enter", "2026-10-01 18:00:00", "enter")
 	if len(h.seen) != 1 || h.seen[0].Period != "Custom" || h.seen[0].Since.Hour() != 9 || h.seen[0].Until.Hour() != 18 {
 		t.Errorf("custom = %+v", h.seen)
 	}
 }
 
 func TestCustomValidation(t *testing.T) {
-	h := newHarness().press("j", "j", "enter", "2026-10-02", "tab", "2026-10-01", "enter")
+	h := newHarness().press("k", "enter", "2026-10-02", "tab", "2026-10-01", "enter")
 	if len(h.seen) != 0 || !strings.Contains(h.m.View(), "start must not be after end") {
 		t.Fatalf("reversed range: %v\n%s", h.seen, h.m.View())
 	}
@@ -127,7 +138,7 @@ func TestCustomValidation(t *testing.T) {
 		t.Errorf("after fix = %+v", h.seen)
 	}
 
-	h = newHarness().press("3", "nope", "enter", "enter")
+	h = newHarness().press("6", "nope", "enter", "enter")
 	if len(h.seen) != 0 || !strings.Contains(h.m.View(), "invalid time") {
 		t.Errorf("bad timestamp: %v\n%s", h.seen, h.m.View())
 	}
@@ -256,7 +267,7 @@ func TestQuit(t *testing.T) {
 		t.Errorf("quit from stats: quit=%v printStats=%v", h.quit, h.m.(model).printStats)
 	}
 	// q inside a text field is text, not quit.
-	if h := newHarness().press("3", "q"); h.quit || !strings.Contains(h.m.View(), "q") {
+	if h := newHarness().press("6", "q"); h.quit || !strings.Contains(h.m.View(), "q") {
 		t.Error("q in custom field should be typed, not quit")
 	}
 }

@@ -45,3 +45,16 @@ func TestDayRange(t *testing.T) {
 		t.Errorf("DayRange = %v .. %v", s, e)
 	}
 }
+
+func TestWeekStart(t *testing.T) {
+	for day, want := range map[int]string{
+		2: "2026-09-28", // Friday, back across the month boundary
+		4: "2026-09-28", // Sunday belongs to the week that began on Monday
+		5: "2026-10-05", // Monday is its own start
+	} {
+		got := WeekStart(time.Date(2026, 10, day, 15, 4, 5, 0, time.UTC))
+		if got.Format("2006-01-02 15:04:05") != want+" 00:00:00" {
+			t.Errorf("WeekStart(Oct %d) = %v, want %s", day, got, want)
+		}
+	}
+}

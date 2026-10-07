@@ -150,12 +150,15 @@ Run `gitshiny` with no arguments in any Git repository.
 │  TIME RANGE                                        │
 │  ▸ 1  Today        Fri, Oct 2                      │
 │    2  Yesterday    Thu, Oct 1                      │
-│    3  Custom       pick any start and end          │
+│    3  This week    Sep 28 → Oct 2                  │
+│    4  This month   October 2026                    │
+│    5  This year    2026                            │
+│    6  Custom       pick any start and end          │
 │                                                    │
 │  AUTHOR                                            │
 │  sun01822                                          │
 │                                                    │
-│  ↑/↓ move · enter select · 1-3 jump · q quit       │
+│  ↑/↓ move · enter select · 1-6 jump · q quit       │
 │                                                    │
 ╰────────────────────────────────────────────────────╯
 ```
@@ -188,7 +191,7 @@ In a real terminal it is in colour: the selected row and title are filled with t
 | Key | Action |
 |---|---|
 | `↑` `↓` or `j` `k` | move (wraps around) |
-| `1` `2` `3` | jump straight to Today, Yesterday, Custom |
+| `1` – `6` | jump straight to Today, Yesterday, This week, This month, This year, Custom |
 | `enter` | select, next field, calculate |
 | `tab` | switch between Start and End |
 | `r` | refresh, or retry after an error |
@@ -196,6 +199,7 @@ In a real terminal it is in colour: the selected row and title are filled with t
 | `q` | quit with a short thank-you animation (any key skips it) |
 | `ctrl+c` | quit immediately |
 
+- **This week** (from Monday), **This month** and **This year** run from the start of the period to the end of today.
 - **Custom** takes the same time formats as `--since` / `--until` below; the fields support cursor movement and paste.
 - While GitShiny reads the history it shows a spinner and a sliding bar. Git usually answers in milliseconds, so the TUI holds that screen for about 0.7 s to keep it visible; `gitshiny stats` is never delayed.
 - Quit from the statistics screen and the result is printed as plain text, so it stays in your scrollback.

@@ -41,6 +41,12 @@ func DayRange(t time.Time) (time.Time, time.Time) {
 		time.Date(y, m, d, 23, 59, 59, 0, t.Location())
 }
 
+// WeekStart returns 00:00:00 of the Monday on or before t, in t's zone.
+func WeekStart(t time.Time) time.Time {
+	s, _ := DayRange(t.AddDate(0, 0, -int((t.Weekday()+6)%7)))
+	return s
+}
+
 // Commas formats n with thousands separators: 1842 -> "1,842".
 func Commas(n int) string {
 	s := strconv.Itoa(n)
