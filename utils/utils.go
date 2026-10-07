@@ -41,6 +41,18 @@ func DayRange(t time.Time) (time.Time, time.Time) {
 		time.Date(y, m, d, 23, 59, 59, 0, t.Location())
 }
 
+// WeekRange returns Monday 00:00:00 of t's week and 23:59:59 of t's day.
+func WeekRange(t time.Time) (time.Time, time.Time) {
+	start, end := DayRange(t)
+	return start.AddDate(0, 0, -(int(t.Weekday())+6)%7), end
+}
+
+// MonthRange returns 00:00:00 on the 1st of t's month and 23:59:59 of t's day.
+func MonthRange(t time.Time) (time.Time, time.Time) {
+	start, end := DayRange(t)
+	return start.AddDate(0, 0, 1-t.Day()), end
+}
+
 // Commas formats n with thousands separators: 1842 -> "1,842".
 func Commas(n int) string {
 	s := strconv.Itoa(n)

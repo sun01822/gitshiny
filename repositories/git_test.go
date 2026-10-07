@@ -50,11 +50,13 @@ func TestLogArgs(t *testing.T) {
 		Since:   time.Date(2026, 10, 1, 0, 0, 0, 0, loc),
 		Until:   time.Date(2026, 10, 1, 23, 59, 59, 0, loc),
 		Branch:  "dev",
+		Paths:   []string{"cmd/"},
+		Exclude: []string{"go.sum"},
 	}
 	args := strings.Join(LogArgs(q), "|")
 	for _, want := range []string{
 		"--fixed-strings", "--author=Alice (A)", "--author=Bob",
-		"--since=2026-10-01 00:00:00 +0600", "--until=2026-10-01 23:59:59 +0600", "|dev|--",
+		"--since=2026-10-01 00:00:00 +0600", "--until=2026-10-01 23:59:59 +0600", "|dev|--|cmd/|:(exclude)go.sum",
 	} {
 		if !strings.Contains(args, want) {
 			t.Errorf("args %q missing %q", args, want)

@@ -65,9 +65,9 @@ const (
 	farewellScreen
 )
 
-var periods = []string{"Today", "Yesterday", "Custom"}
+var periods = []string{"Today", "Yesterday", "This week", "This month", "Custom"}
 
-const custom = 2 // index into periods
+const custom = 4 // index into periods
 
 type (
 	statsMsg    domain.Stats
@@ -81,6 +81,7 @@ type model struct {
 	cursor  int                // selected period
 	inputs  [2]textinput.Model // custom start, end
 	focus   int                // focused custom input
+	all     bool               // every author instead of o.Author
 	spin    spinner.Model
 	frame   int          // loading or farewell animation frame
 	q       domain.Query // query being collected
@@ -124,12 +125,19 @@ func (m model) Init() tea.Cmd { return nil }
 // time so refreshing "Today" stays correct across midnight.
 func (m model) query() (domain.Query, error) {
 	now := m.o.Now()
-	q := domain.Query{Authors: []string{m.o.Author}, Period: periods[m.cursor]}
+	q := domain.Query{Period: periods[m.cursor]}
+	if !m.all {
+		q.Authors = []string{m.o.Author}
+	}
 	switch m.cursor {
 	case 0:
 		q.Since, q.Until = utils.DayRange(now)
 	case 1:
 		q.Since, q.Until = utils.DayRange(now.AddDate(0, 0, -1))
+	case 2:
+		q.Since, q.Until = utils.WeekRange(now)
+	case 3:
+		q.Since, q.Until = utils.MonthRange(now)
 	default:
 		var err error
 		if q.Since, err = utils.ParseTime(m.inputs[0].Value(), now.Location(), false); err != nil {
@@ -143,6 +151,14 @@ func (m model) query() (domain.Query, error) {
 		}
 	}
 	return q, nil
+}
+
+// author names whose commits are counted.
+func (m model) author() string {
+	if m.all {
+		return "All authors"
+	}
+	return m.o.Author
 }
 
 // calculate switches to the loading screen and runs the engine off the UI loop.
@@ -240,9 +256,11 @@ func (m model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cursor = (m.cursor + len(periods) - 1) % len(periods)
 		case "down", "j":
 			m.cursor = (m.cursor + 1) % len(periods)
-		case "1", "2", "3":
+		case "1", "2", "3", "4", "5":
 			m.cursor = int(s[0] - '1')
 			return m.choose()
+		case "a":
+			m.all = !m.all
 		case "enter":
 			return m.choose()
 		}
@@ -271,6 +289,9 @@ func (m model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "esc":
 			m.screen, m.err = menuScreen, nil
 		case "r":
+			return m.calculate()
+		case "a":
+			m.all = !m.all
 			return m.calculate()
 		}
 	case farewellScreen: // any key skips the animation
@@ -310,16 +331,16 @@ func (m model) View() string {
 	var body, keys string
 	switch m.screen {
 	case menuScreen:
-		body, keys = m.menuView(), help("↑/↓", "move", "enter", "select", "1-3", "jump", "q", "quit")
+		body, keys = m.menuView(), help("↑/↓", "move", "enter/1-5", "select", "a", "authors", "q", "quit")
 	case customScreen:
 		body, keys = m.customView(), help("tab", "switch", "enter", "next/calculate", "esc", "back")
 	case loadingScreen:
 		body, keys = m.loadingView(), help("ctrl+c", "quit")
 	case statsScreen:
-		body, keys = m.statsView(), help("r", "refresh", "esc", "menu", "q", "quit")
+		body, keys = m.statsView(), help("r", "refresh", "a", "authors", "esc", "menu", "q", "quit")
 	case errorScreen:
 		body = errPanel.Render(badText.Bold(true).Render("✗ Something went wrong") + "\n" + m.err.Error())
-		keys = help("r", "retry", "esc", "menu", "q", "quit")
+		keys = help("r", "retry", "a", "authors", "esc", "menu", "q", "quit")
 	case farewellScreen:
 		body, keys = m.farewellView(), help("any key", "exit now")
 	}
@@ -353,7 +374,9 @@ func help(pairs ...string) string {
 
 func (m model) menuView() string {
 	now := m.o.Now()
-	hints := []string{now.Format("Mon, Jan 2"), now.AddDate(0, 0, -1).Format("Mon, Jan 2"), "pick any start and end"}
+	week, _ := utils.WeekRange(now)
+	hints := []string{now.Format("Mon, Jan 2"), now.AddDate(0, 0, -1).Format("Mon, Jan 2"),
+		"since " + week.Format("Mon, Jan 2"), "since " + now.Format("Jan") + " 1", "pick any start and end"}
 	var b strings.Builder
 	b.WriteString(label.Render("TIME RANGE") + "\n")
 	for i, p := range periods {
@@ -363,7 +386,7 @@ func (m model) menuView() string {
 			fmt.Fprintf(&b, "  %s  %-12s %s\n", mutedText.Render(fmt.Sprint(i+1)), p, mutedText.Render(hints[i]))
 		}
 	}
-	b.WriteString("\n" + label.Render("AUTHOR") + "\n" + m.o.Author)
+	b.WriteString("\n" + label.Render("AUTHOR") + "\n" + m.author())
 	return b.String()
 }
 
@@ -389,7 +412,7 @@ func (m model) customView() string {
 // indeterminate: git log is a single call with no progress to report.
 func (m model) loadingView() string {
 	const block = 8
-	what := m.q.Period + " · " + m.q.Since.Format("Mon, Jan 2") + " · " + m.o.Author
+	what := m.q.Period + " · " + m.q.Since.Format("Mon, Jan 2") + " · " + m.author()
 	if m.cursor == custom {
 		what = m.q.Since.Format(layout) + " → " + m.q.Until.Format(layout)
 	}
@@ -420,7 +443,7 @@ func (m model) farewellView() string {
 func (m model) statsView() string {
 	s := m.stats
 	var b strings.Builder
-	b.WriteString(bold.Render(s.Period) + mutedText.Render(" · ") + strings.Join(s.Authors, ", ") + "\n")
+	b.WriteString(bold.Render(s.Period) + mutedText.Render(" · ") + m.author() + "\n")
 	b.WriteString(mutedText.Render(s.Since.Format(layout)+" → "+s.Until.Format(layout)) + "\n\n")
 	if s.Commits == 0 {
 		b.WriteString("No commits in this period.\n" + mutedText.Render("Press esc to pick another range.") + "\n")
