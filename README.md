@@ -83,12 +83,13 @@ Run `gitshiny` with no arguments in any Git repository.
 │    2  Yesterday    Thu, Oct 1                      │
 │    3  This week    since Mon, Sep 28               │
 │    4  This month   since Oct 1                     │
-│    5  Custom       pick any start and end          │
+│    5  This year    since Jan 1                     │
+│    6  Custom       pick any start and end          │
 │                                                    │
 │  AUTHOR                                            │
 │  sun01822                                          │
 │                                                    │
-│  ↑/↓ move · enter/1-5 select · a authors · q quit  │
+│  ↑/↓ move · enter/1-6 select · a authors · q quit  │
 │                                                    │
 ╰────────────────────────────────────────────────────╯
 ```
@@ -121,7 +122,7 @@ In a real terminal it is in colour: the selected row and title are filled with t
 | Key | Action |
 |---|---|
 | `↑` `↓` or `j` `k` | move (wraps around) |
-| `1` to `5` | jump straight to Today, Yesterday, This week, This month, Custom |
+| `1` to `6` | jump straight to Today, Yesterday, This week, This month, This year, Custom |
 | `a` | switch between your commits and all authors |
 | `enter` | select, next field, calculate |
 | `tab` | switch between Start and End |

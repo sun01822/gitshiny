@@ -65,9 +65,9 @@ const (
 	farewellScreen
 )
 
-var periods = []string{"Today", "Yesterday", "This week", "This month", "Custom"}
+var periods = []string{"Today", "Yesterday", "This week", "This month", "This year", "Custom"}
 
-const custom = 4 // index into periods
+const custom = 5 // index into periods
 
 type (
 	statsMsg    domain.Stats
@@ -138,6 +138,8 @@ func (m model) query() (domain.Query, error) {
 		q.Since, q.Until = utils.WeekRange(now)
 	case 3:
 		q.Since, q.Until = utils.MonthRange(now)
+	case 4:
+		q.Since, q.Until = utils.YearRange(now)
 	default:
 		var err error
 		if q.Since, err = utils.ParseTime(m.inputs[0].Value(), now.Location(), false); err != nil {
@@ -256,7 +258,7 @@ func (m model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cursor = (m.cursor + len(periods) - 1) % len(periods)
 		case "down", "j":
 			m.cursor = (m.cursor + 1) % len(periods)
-		case "1", "2", "3", "4", "5":
+		case "1", "2", "3", "4", "5", "6":
 			m.cursor = int(s[0] - '1')
 			return m.choose()
 		case "a":
@@ -331,7 +333,7 @@ func (m model) View() string {
 	var body, keys string
 	switch m.screen {
 	case menuScreen:
-		body, keys = m.menuView(), help("↑/↓", "move", "enter/1-5", "select", "a", "authors", "q", "quit")
+		body, keys = m.menuView(), help("↑/↓", "move", "enter/1-6", "select", "a", "authors", "q", "quit")
 	case customScreen:
 		body, keys = m.customView(), help("tab", "switch", "enter", "next/calculate", "esc", "back")
 	case loadingScreen:
@@ -376,7 +378,7 @@ func (m model) menuView() string {
 	now := m.o.Now()
 	week, _ := utils.WeekRange(now)
 	hints := []string{now.Format("Mon, Jan 2"), now.AddDate(0, 0, -1).Format("Mon, Jan 2"),
-		"since " + week.Format("Mon, Jan 2"), "since " + now.Format("Jan") + " 1", "pick any start and end"}
+		"since " + week.Format("Mon, Jan 2"), "since " + now.Format("Jan") + " 1", "since Jan 1", "pick any start and end"}
 	var b strings.Builder
 	b.WriteString(label.Render("TIME RANGE") + "\n")
 	for i, p := range periods {

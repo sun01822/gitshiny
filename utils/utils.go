@@ -53,6 +53,12 @@ func MonthRange(t time.Time) (time.Time, time.Time) {
 	return start.AddDate(0, 0, 1-t.Day()), end
 }
 
+// YearRange returns 00:00:00 on January 1st of t's year and 23:59:59 of t's day.
+func YearRange(t time.Time) (time.Time, time.Time) {
+	start, end := DayRange(t)
+	return start.AddDate(0, 0, 1-t.YearDay()), end
+}
+
 // Commas formats n with thousands separators: 1842 -> "1,842".
 func Commas(n int) string {
 	s := strconv.Itoa(n)

@@ -66,4 +66,12 @@ func TestWeekAndMonthRange(t *testing.T) {
 			t.Errorf("MonthRange(%s) = %v .. %v", now, s, e)
 		}
 	}
+	// 2028 is a leap year: Dec 31 is day 366.
+	for now, want := range map[string]string{"2026-01-01": "2026-01-01", "2028-12-31": "2028-01-01"} {
+		n, _ := time.Parse("2006-01-02 15:04", now+" 15:04")
+		s, e := YearRange(n)
+		if s.Format(day) != want+" 00:00:00" || e.Format(day) != now+" 23:59:59" {
+			t.Errorf("YearRange(%s) = %v .. %v", now, s, e)
+		}
+	}
 }
